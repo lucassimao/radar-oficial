@@ -1,5 +1,7 @@
 ALTER TABLE diarios
-    DROP COLUMN IF EXISTS description,
-    DROP COLUMN IF EXISTS last_modified_at,
-    ALTER COLUMN published_at TYPE DATE,
-    ALTER COLUMN published_at SET NOT NULL;
+    ADD COLUMN description TEXT,
+    ADD COLUMN last_modified_at TIMESTAMP WITHOUT TIME ZONE,
+    ALTER COLUMN published_at TYPE TIMESTAMP WITHOUT TIME ZONE,
+    ALTER COLUMN published_at DROP NOT NULL;
+
+
