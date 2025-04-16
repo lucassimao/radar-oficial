@@ -11,6 +11,4 @@ jobs:
     steps:
       - name: Call Endpoint
         run: |
-          curl -X POST "https://radar-oficial-kfrag.ondigitalocean.app/ping" \
-               -H "Content-Type: application/json" \
-               -d '{"trigger": "github-scheduler"}'
+          curl "https://radar-oficial-kfrag.ondigitalocean.app/crawl?slug=governo-pi"

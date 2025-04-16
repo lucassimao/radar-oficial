@@ -8,11 +8,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"radaroficial.app/internal/model"
+	"radaroficial.app/internal/storage"
 )
 
 type diarioAPIResponse struct {
@@ -23,15 +27,14 @@ type diarioAPIResponse struct {
 }
 
 var diarioURLBase = "https://www.diario.pi.gov.br"
-
 var hrefRegexp = regexp.MustCompile(`href="(.+?\.pdf)"`)
 
-func FetchGovernoPiauiDiarios(ctx context.Context, forDate time.Time) ([]*model.Diario, error) {
+func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *storage.SpacesUploader) ([]*model.Diario, error) {
 	form := url.Values{}
 	form.Set("draw", "3")
 	form.Set("start", "0")
 	form.Set("length", "50")
-	form.Set("filter_data", forDate.Format("2006-01-02")) // "2006-01-02" is the layout string to get YYYY-MM-DD
+	form.Set("filter_data", date.Format("2006-01-02"))
 
 	for i := 0; i <= 2; i++ {
 		prefix := fmt.Sprintf("columns[%d]", i)
@@ -47,7 +50,7 @@ func FetchGovernoPiauiDiarios(ctx context.Context, forDate time.Time) ([]*model.
 	form.Set("search[regex]", "false")
 	form.Set("filter_numero", "")
 
-	req, err := http.NewRequestWithContext(ctx, "POST", diarioURLBase+"/doe/Api/listardiarios.json", bytes.NewBufferString(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", diarioURLBase+"/doe/Api/listardiarios.json", strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -58,7 +61,7 @@ func FetchGovernoPiauiDiarios(ctx context.Context, forDate time.Time) ([]*model.
 	req.Header.Set("Referer", diarioURLBase+"/doe/")
 	req.Header.Set("Origin", diarioURLBase)
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: 20 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -82,22 +85,41 @@ func FetchGovernoPiauiDiarios(ctx context.Context, forDate time.Time) ([]*model.
 			continue
 		}
 
-		// Extract .pdf path from HTML
 		match := hrefRegexp.FindStringSubmatch(row[0])
 		if len(match) < 2 {
 			continue
 		}
-		pdfURL := diarioURLBase + strings.ReplaceAll(match[1], "..", "")
+		rawPDFPath := strings.ReplaceAll(match[1], "..", "")
+		pdfURL := diarioURLBase + rawPDFPath
 
-		// Parse published and last modified dates
+		resp, err := http.Get(pdfURL)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			continue
+		}
+		defer resp.Body.Close()
+
+		pdfContent, err := io.ReadAll(resp.Body)
+		if err != nil {
+			continue
+		}
+
 		publishedAt, _ := time.Parse("02/01/2006", row[2])
 		lastModifiedAt, _ := time.Parse("02/01/2006 15:04:05", row[3])
-
 		desc := strings.TrimSpace(row[1])
+		sanitized := sanitizeDescription(desc)
+		// Construct object path: e.g., "2025/04/DOEPI_71_2025.pdf"
+		filename := filepath.Base(rawPDFPath)
+		objectPath := fmt.Sprintf("governo-pi/%d/%02d/%s_%s", date.Year(), date.Month(), sanitized, filename)
+
+		err = uploader.UploadFile(ctx, objectPath, bytes.NewReader(pdfContent), int64(len(pdfContent)), "application/pdf")
+		if err != nil {
+			fmt.Print(err)
+			continue
+		}
 
 		diarios = append(diarios, &model.Diario{
 			InstitutionID:  1,
-			SourceURL:      pdfURL,
+			SourceURL:      fmt.Sprintf("https://%s.%s/%s", uploader.Bucket, os.Getenv("DO_SPACES_ENDPOINT"), objectPath),
 			Description:    &desc,
 			PublishedAt:    &publishedAt,
 			LastModifiedAt: &lastModifiedAt,
@@ -105,4 +127,23 @@ func FetchGovernoPiauiDiarios(ctx context.Context, forDate time.Time) ([]*model.
 	}
 
 	return diarios, nil
+}
+
+// sanitizeDescription returns a safe string for filenames
+func sanitizeDescription(s string) string {
+	// Convert to ASCII (basic filter only — no accent removal here)
+	var b strings.Builder
+	for _, r := range s {
+		if r <= unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r) || r == ' ' || r == '_') {
+			b.WriteRune(r)
+		}
+	}
+
+	// Replace spaces with underscores
+	safe := strings.ReplaceAll(b.String(), " ", "_")
+
+	// Collapse multiple underscores
+	safe = regexp.MustCompile(`_+`).ReplaceAllString(safe, "_")
+
+	return safe
 }

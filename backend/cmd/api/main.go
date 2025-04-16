@@ -13,6 +13,7 @@ import (
 	"github.com/joho/godotenv"
 	"radaroficial.app/internal/config"
 	"radaroficial.app/internal/diarios"
+	"radaroficial.app/internal/storage"
 )
 
 var pool *pgxpool.Pool
@@ -80,8 +81,14 @@ func handleCrawl(w http.ResponseWriter, r *http.Request) {
 		fetchDate = time.Now()
 	}
 
+	uploader, err := storage.NewSpacesUploader("radar-oficial-diarios-piaui")
+	if err != nil {
+		http.Error(w, "Failed to initialize storage", http.StatusInternalServerError)
+		return
+	}
+
 	// Fetch and save diarios
-	entries, err := diarios.FetchGovernoPiauiDiarios(ctx, fetchDate)
+	entries, err := diarios.FetchGovernoPiauiDiarios(ctx, fetchDate, uploader)
 	if err != nil {
 		log.Printf("❌ Failed to fetch diarios: %v", err)
 		http.Error(w, "Failed to fetch diarios", http.StatusInternalServerError)
