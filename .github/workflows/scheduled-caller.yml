@@ -1,0 +1,16 @@
+name: Call External API on Schedule
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # every hour
+  workflow_dispatch:       # optional: allows manual run
+
+jobs:
+  call-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Endpoint
+        run: |
+          curl -X POST "https://radar-oficial-kfrag.ondigitalocean.app/ping" \
+               -H "Content-Type: application/json" \
+               -d '{"trigger": "github-scheduler"}'
