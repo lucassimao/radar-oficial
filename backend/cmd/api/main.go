@@ -50,28 +50,52 @@ func main() {
 		port = "8080"
 	}
 
-	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-
-		today := time.Now()
-		// yesterday := time.Now().AddDate(0, 0, -1)
-
-		entries, err := diarios.FetchGovernoPiauiDiarios(context.Background(), today)
-		if err != nil {
-			log.Fatal("❌ Failed to fetch diarios:", err)
-		}
-
-		service := diarios.NewDiarioService(pool)
-		for _, d := range entries {
-			err := service.Insert(context.Background(), d)
-			if err != nil {
-				log.Printf("⚠️ Failed to insert diário for %s: %v", d.SourceURL, err)
-			} else {
-				log.Printf("✅ Inserted diário %s", d.SourceURL)
-			}
-		}
-		fmt.Fprint(w, "pong")
-	})
+	http.HandleFunc("/crawl", handleCrawl)
 
 	log.Println("Server running on port", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
+func handleCrawl(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	slug := r.URL.Query().Get("slug")
+	dateStr := r.URL.Query().Get("date")
+
+	// If slug is not "governo-pi", return 204
+	if slug != "governo-pi" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Parse date or fallback to today
+	var fetchDate time.Time
+	var err error
+	if dateStr != "" {
+		fetchDate, err = time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			http.Error(w, "Invalid date format. Use YYYY-MM-DD.", http.StatusBadRequest)
+			return
+		}
+	} else {
+		fetchDate = time.Now()
+	}
+
+	// Fetch and save diarios
+	entries, err := diarios.FetchGovernoPiauiDiarios(ctx, fetchDate)
+	if err != nil {
+		log.Printf("❌ Failed to fetch diarios: %v", err)
+		http.Error(w, "Failed to fetch diarios", http.StatusInternalServerError)
+		return
+	}
+
+	service := diarios.NewDiarioService(pool)
+	for _, d := range entries {
+		if err := service.Insert(ctx, d); err != nil {
+			log.Printf("⚠️ Failed to insert diário for %s: %v", d.SourceURL, err)
+		} else {
+			log.Printf("✅ Inserted diário %s", d.SourceURL)
+		}
+	}
+
+	fmt.Fprintf(w, "📥 Processed %d diário(s)\n", len(entries))
 }
