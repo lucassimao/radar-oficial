@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	crawler "radaroficial.app/internal"
 )
 
 func main() {
@@ -18,6 +19,7 @@ func main() {
 	}
 
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+		crawler.FetchAndUploadDiarios()
 		fmt.Fprint(w, "pong")
 	})
 

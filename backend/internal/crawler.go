@@ -1,4 +1,4 @@
-package main
+package crawler
 
 import (
 	"context"
@@ -7,25 +7,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-func main() {
-	_ = godotenv.Load()
+func FetchAndUploadDiarios() error {
 
 	log.Println("Starting Diário fetcher worker...")
 
-	err := FetchAndUploadDiarios()
-	if err != nil {
-		log.Fatalf("Worker failed: %v", err)
-	}
-
-	log.Println("Worker completed successfully.")
-}
-
-func FetchAndUploadDiarios() error {
 	// Example only – you’ll implement real logic here
 	today := time.Now().Format("2006-01-02")
 	fmt.Printf("Downloading Diário Oficial for %s...\n", today)
@@ -33,6 +22,8 @@ func FetchAndUploadDiarios() error {
 	// TODO: Download file
 	// TODO: Parse / process content
 	// TODO: Upload to DO Spaces
+
+	log.Println("Worker completed successfully.")
 
 	return nil
 }
