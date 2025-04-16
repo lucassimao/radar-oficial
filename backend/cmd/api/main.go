@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
-	"time"
+	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"radaroficial.app/internal/api"
 	"radaroficial.app/internal/config"
-	"radaroficial.app/internal/diarios"
-	"radaroficial.app/internal/storage"
 )
 
 var pool *pgxpool.Pool
@@ -44,65 +43,40 @@ func init() {
 }
 
 func main() {
+	// Load env variables
 	_ = godotenv.Load()
+
+	// Setup signal catching
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	http.HandleFunc("/crawl", handleCrawl)
+	// Initialize and start the server
+	server := api.NewServer(pool)
+	server.RegisterHandlers()
 
-	log.Println("Server running on port", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
-}
-
-func handleCrawl(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	slug := r.URL.Query().Get("slug")
-	dateStr := r.URL.Query().Get("date")
-
-	// If slug is not "governo-pi", return 204
-	if slug != "governo-pi" {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	// Parse date or fallback to today
-	var fetchDate time.Time
-	var err error
-	if dateStr != "" {
-		fetchDate, err = time.Parse("2006-01-02", dateStr)
-		if err != nil {
-			http.Error(w, "Invalid date format. Use YYYY-MM-DD.", http.StatusBadRequest)
-			return
+	// Start the server in a goroutine
+	go func() {
+		if err := server.Start(port); err != nil {
+			log.Fatal(err)
 		}
-	} else {
-		fetchDate = time.Now()
+	}()
+
+	// Wait for interrupt signal
+	<-ctx.Done()
+
+	// Shutdown the server
+	if err := server.Shutdown(context.Background()); err != nil {
+		log.Fatalf("Server shutdown failed: %v", err)
 	}
 
-	uploader, err := storage.NewSpacesUploader("radar-oficial-diarios-piaui")
-	if err != nil {
-		http.Error(w, "Failed to initialize storage", http.StatusInternalServerError)
-		return
-	}
+	// Explicitly close the DB connection pool
+	log.Println("Closing database connection pool...")
+	pool.Close()
 
-	// Fetch and save diarios
-	entries, err := diarios.FetchGovernoPiauiDiarios(ctx, fetchDate, uploader)
-	if err != nil {
-		log.Printf("❌ Failed to fetch diarios: %v", err)
-		http.Error(w, "Failed to fetch diarios", http.StatusInternalServerError)
-		return
-	}
-
-	service := diarios.NewDiarioService(pool)
-	for _, d := range entries {
-		if err := service.Insert(ctx, d); err != nil {
-			log.Printf("⚠️ Failed to insert diário for %s: %v", d.SourceURL, err)
-		} else {
-			log.Printf("✅ Inserted diário %s", d.SourceURL)
-		}
-	}
-
-	fmt.Fprintf(w, "📥 Processed %d diário(s)\n", len(entries))
+	log.Println("Application shutdown complete")
 }

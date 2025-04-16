@@ -9,14 +9,14 @@
 - [x] Set up `.env` config with secrets, API keys
 
 #### 2. **Provision and configure infrastructure**
-- [ ] Create and configure **PostgreSQL DB** (DO Managed DB or Supabase)
+- [x] Create and configure **PostgreSQL DB** (DO Managed DB or Supabase)
 - [x] Create **DigitalOcean AI Knowledge Base**
 - [x] Choose embedding model: ✅ `MultiQA MPNet Base Dot v1`
 
 #### 3. **Create Diário ingestion pipeline**
-- [ ] Build a Go script to download and normalize Diários Oficiais (PDF → text)
-- [ ] Save metadata to PostgreSQL (e.g., date, source, entity)
-- [ ] Upload PDF to Object Storage 
+- [x] Build a Go script to download and normalize Diários Oficiais (PDF → text)
+- [x] Save metadata to PostgreSQL (e.g., date, source, entity)
+- [x] Upload PDF to Object Storage 
 - [ ] Trigger update on DO AI KB
 
 ---
