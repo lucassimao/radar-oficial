@@ -46,7 +46,7 @@ func main() {
 
 	sslMode := "disable"
 	if config.Env() == "production" {
-		sslMode = "enable"
+		sslMode = "require"
 	}
 
 	// e.g., postgres://user:pass@host:5432/dbname
