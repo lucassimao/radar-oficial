@@ -1,11 +1,11 @@
-version: "3.9"
 services:
   postgres:
-    image: postgres:15
+    image: postgres:17
+    container_name: radar-oficial-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: diarios
+      POSTGRES_DB: radar-oficial
     ports:
       - "5432:5432"
     volumes:
