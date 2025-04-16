@@ -27,3 +27,6 @@ rollback-migration:
 create-migration:
 	@read -p "Enter migration name: " name; \
 	$(MIGRATE_BIN) create -ext sql -dir cmd/migrate/migrations -seq $$name
+
+psql:
+	@PGPASSWORD=$(DB_PASS) psql -p $(DB_PORT) -U $(DB_USER)  -h $(DB_HOST) $(DB_NAME)

@@ -11,7 +11,7 @@ INSERT INTO institutions (
     updated_at
 )
 VALUES (
-    gen_random_uuid(),
+    DEFAULT,
     'Governo do Estado do Piauí',
     'governo-pi',
     'state',
