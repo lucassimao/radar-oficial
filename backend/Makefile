@@ -14,8 +14,8 @@ setup-migrate:
 	chmod +x $(MIGRATE_BIN)
 	@echo "✅ migrate installed at $(MIGRATE_BIN)"
 
-build-worker:
-	go build -o bin/worker ./cmd/worker
+run-api:
+	go run ./cmd/api
 
 migrate:
 	go run ./cmd/migrate
