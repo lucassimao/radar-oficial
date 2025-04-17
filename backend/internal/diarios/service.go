@@ -54,6 +54,21 @@ func (s *DiarioService) Insert(ctx context.Context, d *model.Diario) error {
 	return err
 }
 
+// DiarioExists checks if a diario already exists in the database
+func (s *DiarioService) DiarioExists(ctx context.Context, institutionID int, description string) (bool, error) {
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM diarios 
+			WHERE institution_id = $1 AND description = $2
+		);
+	`
+	
+	var exists bool
+	err := s.DB.QueryRow(ctx, query, institutionID, description).Scan(&exists)
+	
+	return exists, err
+}
+
 func (s *DiarioService) GetPendingIndexing(ctx context.Context) ([]*model.Diario, error) {
 	query := `
 		SELECT 

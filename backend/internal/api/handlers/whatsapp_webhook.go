@@ -179,11 +179,7 @@ func (h *WhatsAppWebhookHandler) handleWebhook(w http.ResponseWriter, r *http.Re
 						log.Printf("📱 Text message from %s: %s", senderID, messageText)
 						allMessages = append(allMessages, messageText)
 
-						// Check if this is potentially a first-time message
-						lowerText := strings.ToLower(messageText)
-						if isFirstMessage && (lowerText == "oi" || lowerText == "olá" || lowerText == "ola" ||
-							lowerText == "hi" || lowerText == "hello" || strings.Contains(lowerText, "bom dia") ||
-							strings.Contains(lowerText, "boa tarde") || strings.Contains(lowerText, "boa noite")) {
+						if isFirstMessage {
 							// Send welcome message for first-time or greeting messages
 							if err := h.whatsappService.SendWelcomeMessage(ctx, senderID, userName); err != nil {
 								log.Printf("❌ Error sending welcome message: %v", err)

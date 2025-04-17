@@ -49,15 +49,16 @@ func (h *CrawlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create the diario service
+	service := diarios.NewDiarioService(h.DB)
+	
 	// Fetch and save diarios
-	entries, err := diarios.FetchGovernoPiauiDiarios(ctx, fetchDate, uploader)
+	entries, err := diarios.FetchGovernoPiauiDiarios(ctx, fetchDate, uploader, service)
 	if err != nil {
 		log.Printf("❌ Failed to fetch diarios: %v", err)
 		http.Error(w, "Failed to fetch diarios", http.StatusInternalServerError)
 		return
 	}
-
-	service := diarios.NewDiarioService(h.DB)
 	for _, d := range entries {
 		if err := service.Insert(ctx, d); err != nil {
 			log.Printf("⚠️ Failed to insert diário for %s: %v", d.SourceURL, err)

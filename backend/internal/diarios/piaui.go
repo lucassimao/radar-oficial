@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -29,7 +30,7 @@ type diarioAPIResponse struct {
 var diarioURLBase = "https://www.diario.pi.gov.br"
 var hrefRegexp = regexp.MustCompile(`href="(.+?\.pdf)"`)
 
-func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *storage.SpacesUploader) ([]*model.Diario, error) {
+func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *storage.SpacesUploader, service *DiarioService) ([]*model.Diario, error) {
 	form := url.Values{}
 	form.Set("draw", "3")
 	form.Set("start", "0")
@@ -89,23 +90,41 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 		if len(match) < 2 {
 			continue
 		}
+		
+		publishedAt, _ := time.Parse("02/01/2006", row[2])
+		lastModifiedAt, _ := time.Parse("02/01/2006 15:04:05", row[3])
+		desc := strings.TrimSpace(row[1])
+		
+		// Check if this diario already exists in our database
+		exists, err := service.DiarioExists(ctx, 1, desc)
+		if err != nil {
+			log.Printf("⚠️ Error checking if diario exists: %v", err)
+		}
+		
+		if exists {
+			log.Printf("✅ Skipping already downloaded diario: %s", desc)
+			continue
+		}
+		
+		// If we get here, this is a new diario that needs downloading
+		log.Printf("📥 Downloading new diario: %s", desc)
+		
 		rawPDFPath := strings.ReplaceAll(match[1], "..", "")
 		pdfURL := diarioURLBase + rawPDFPath
 
 		resp, err := http.Get(pdfURL)
 		if err != nil || resp.StatusCode != http.StatusOK {
+			log.Printf("❌ Failed to download PDF from %s: %v", pdfURL, err)
 			continue
 		}
 		defer resp.Body.Close()
 
 		pdfContent, err := io.ReadAll(resp.Body)
 		if err != nil {
+			log.Printf("❌ Failed to read PDF content: %v", err)
 			continue
 		}
 
-		publishedAt, _ := time.Parse("02/01/2006", row[2])
-		lastModifiedAt, _ := time.Parse("02/01/2006 15:04:05", row[3])
-		desc := strings.TrimSpace(row[1])
 		sanitized := sanitizeDescription(desc)
 		// Construct object path: e.g., "2025/04/DOEPI_71_2025.pdf"
 		filename := filepath.Base(rawPDFPath)
@@ -113,9 +132,11 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 
 		err = uploader.UploadFile(ctx, objectPath, bytes.NewReader(pdfContent), int64(len(pdfContent)), "application/pdf")
 		if err != nil {
-			fmt.Print(err)
+			log.Printf("❌ Failed to upload PDF to storage: %v", err)
 			continue
 		}
+		
+		log.Printf("✅ Successfully uploaded %s", objectPath)
 
 		diarios = append(diarios, &model.Diario{
 			InstitutionID:  1,
