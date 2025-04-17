@@ -24,8 +24,8 @@
 ### 🔹 **Phase 2: WhatsApp Bot + Basic Interaction**
 
 #### 4. **Integrate WhatsApp**
-- [ ] Set up webhook to receive/send messages
-- [ ] Verify connection and delivery receipt
+- [x] Set up webhook to receive/send messages
+- [x] Verify connection and delivery receipt
 
 #### 5. **Create session handling logic**
 - [ ] Store basic user session info (phone number, state, entity, current context)

@@ -8,14 +8,29 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"radaroficial.app/internal/whatsapp"
 )
 
 // WhatsAppWebhookHandler handles incoming webhook requests from WhatsApp
-type WhatsAppWebhookHandler struct{}
+type WhatsAppWebhookHandler struct {
+	whatsappService *whatsapp.WhatsAppService
+	db              *pgxpool.Pool
+}
 
 // NewWhatsAppWebhookHandler creates a new WhatsAppWebhookHandler
-func NewWhatsAppWebhookHandler() *WhatsAppWebhookHandler {
-	return &WhatsAppWebhookHandler{}
+func NewWhatsAppWebhookHandler(db *pgxpool.Pool) (*WhatsAppWebhookHandler, error) {
+	whatsappService, err := whatsapp.NewWhatsAppService(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create WhatsApp service: %w", err)
+	}
+
+	return &WhatsAppWebhookHandler{
+		whatsappService: whatsappService,
+		db:              db,
+	}, nil
 }
 
 // WhatsAppMessage represents a simplified structure of an incoming WhatsApp message
@@ -42,7 +57,18 @@ type WhatsAppMessage struct {
 					Timestamp string `json:"timestamp"`
 					Text      struct {
 						Body string `json:"body"`
-					} `json:"text"`
+					} `json:"text,omitempty"`
+					Interactive struct {
+						ButtonReply struct {
+							ID    string `json:"id"`
+							Title string `json:"title"`
+						} `json:"button_reply,omitempty"`
+						ListReply struct {
+							ID          string `json:"id"`
+							Title       string `json:"title"`
+							Description string `json:"description,omitempty"`
+						} `json:"list_reply,omitempty"`
+					} `json:"interactive,omitempty"`
 					Type string `json:"type"`
 				} `json:"messages"`
 			} `json:"value"`
@@ -89,6 +115,8 @@ func (h *WhatsAppWebhookHandler) handleVerification(w http.ResponseWriter, r *ht
 
 // handleWebhook processes incoming messages from WhatsApp
 func (h *WhatsAppWebhookHandler) handleWebhook(w http.ResponseWriter, r *http.Request) {
+	// Use the request's context for database operations
+	ctx := r.Context()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("❌ Error reading request body: %v", err)
@@ -109,27 +137,113 @@ func (h *WhatsAppWebhookHandler) handleWebhook(w http.ResponseWriter, r *http.Re
 	// Process the message
 	log.Printf("✅ Received WhatsApp webhook")
 
-	// Extract the sender info and message text (if present)
+	// Extract the sender info and messages (if present)
 	for _, entry := range message.Entry {
 		for _, change := range entry.Changes {
 			if change.Field == "messages" {
+				// Collect user info from contacts section
+				var userName string
+				if len(change.Value.Contacts) > 0 {
+					userName = change.Value.Contacts[0].Profile.Name
+				}
+
+				// Collect all message texts from this change
+				var allMessages []string
+				var senderID string
+				var isFirstMessage bool = false
+
+				// Extract sender ID first to check user session
+				if len(change.Value.Messages) > 0 {
+					senderID = change.Value.Messages[0].From
+
+					// Check if this is a first-time interaction by checking user session state
+					userState, err := h.whatsappService.GetUserState(ctx, senderID)
+					if err != nil || userState == "" {
+						// User has no state or session, consider it a first message
+						isFirstMessage = true
+						log.Printf("📱 New user or user without state: %s", senderID)
+					} else {
+						log.Printf("📱 Returning user with state: %s, state: %s", senderID, userState)
+					}
+				}
+
 				for _, msg := range change.Value.Messages {
-					if msg.Type == "text" {
-						senderID := msg.From
+					if senderID == "" {
+						senderID = msg.From
+					}
+
+					// Handle different message types
+					switch msg.Type {
+					case "text":
 						messageText := msg.Text.Body
+						log.Printf("📱 Text message from %s: %s", senderID, messageText)
+						allMessages = append(allMessages, messageText)
 
-						log.Printf("📱 Message from %s: %s", senderID, messageText)
-
-						// Send the message to the AI agent and get a response
-						agentResponse, err := h.sendMessageToAIAgent(messageText)
-						if err != nil {
-							log.Printf("❌ Error sending message to AI agent: %v", err)
-							responseText := "Desculpe, estamos com dificuldades técnicas. Tente novamente mais tarde."
-							h.sendWhatsAppMessage(senderID, responseText)
-						} else {
-							// Send the AI response back to the user
-							h.sendWhatsAppMessage(senderID, agentResponse)
+						// Check if this is potentially a first-time message
+						lowerText := strings.ToLower(messageText)
+						if isFirstMessage && (lowerText == "oi" || lowerText == "olá" || lowerText == "ola" ||
+							lowerText == "hi" || lowerText == "hello" || strings.Contains(lowerText, "bom dia") ||
+							strings.Contains(lowerText, "boa tarde") || strings.Contains(lowerText, "boa noite")) {
+							// Send welcome message for first-time or greeting messages
+							if err := h.whatsappService.SendWelcomeMessage(ctx, senderID, userName); err != nil {
+								log.Printf("❌ Error sending welcome message: %v", err)
+							}
+							// Then send state selection
+							if err := h.whatsappService.SendStateSelectionList(ctx, senderID); err != nil {
+								log.Printf("❌ Error sending state selection: %v", err)
+							}
+							isFirstMessage = false
+							// Skip AI processing since we're sending welcome message
+							allMessages = nil
+							break
 						}
+
+					case "interactive":
+						// Handle interactive message responses
+						if msg.Interactive.ListReply.ID != "" {
+							selection := msg.Interactive.ListReply.ID
+							log.Printf("📱 Interactive list selection from %s: %s", senderID, selection)
+
+							if selection == "piaui" {
+								// Update user state in database
+								if err := h.whatsappService.UpdateUserState(ctx, senderID, "piaui"); err != nil {
+									log.Printf("❌ Error updating user state: %v", err)
+								}
+								responseText := "Você selecionou o *Piauí*. Agora você pode me perguntar sobre qualquer publicação."
+								if err := h.whatsappService.SendTextMessage(senderID, responseText); err != nil {
+									log.Printf("❌ Error sending response message: %v", err)
+								}
+							} else if selection == "coming_soon" {
+								responseText := "Estamos trabalhando para adicionar mais estados em breve."
+								if err := h.whatsappService.SendTextMessage(senderID, responseText); err != nil {
+									log.Printf("❌ Error sending response message: %v", err)
+								}
+							}
+
+							// Skip AI processing for interactive responses
+							allMessages = nil
+						} else if msg.Interactive.ButtonReply.ID != "" {
+							button := msg.Interactive.ButtonReply.ID
+							log.Printf("📱 Interactive button selection from %s: %s", senderID, button)
+							// Handle button replies if needed in the future
+						}
+					}
+				}
+
+				// Process collected messages with AI if we have any
+				if len(allMessages) > 0 && senderID != "" {
+					// Combine all messages into a single string
+					combinedMessage := strings.Join(allMessages, "\n")
+
+					// Send the combined message to the AI agent
+					agentResponse, err := h.sendMessageToAIAgent(combinedMessage)
+					if err != nil {
+						log.Printf("❌ Error sending message to AI agent: %v", err)
+						responseText := "Desculpe, estamos com dificuldades técnicas. Tente novamente mais tarde."
+						h.whatsappService.SendTextMessage(senderID, responseText)
+					} else {
+						// Send the AI response back to the user
+						h.whatsappService.SendTextMessage(senderID, agentResponse)
 					}
 				}
 			}
@@ -145,7 +259,7 @@ func (h *WhatsAppWebhookHandler) sendMessageToAIAgent(message string) (string, e
 	// Get endpoint and access key from environment variables
 	agentEndpoint := os.Getenv("DO_AGENT_PIAUI_URL")
 	if agentEndpoint == "" {
-		return "", fmt.Errorf("AGENT_ENDPOINT environment variable not set")
+		return "", fmt.Errorf("DO_AGENT_PIAUI_URL environment variable not set")
 	}
 
 	agentAccessKey := os.Getenv("DO_AGENT_PIAUI_ACCESS_KEY")
@@ -244,60 +358,4 @@ func (h *WhatsAppWebhookHandler) sendMessageToAIAgent(message string) (string, e
 	return aiResponse.Choices[0].Message.Content, nil
 }
 
-// sendWhatsAppMessage sends a text message to a WhatsApp user
-func (h *WhatsAppWebhookHandler) sendWhatsAppMessage(recipientID, message string) error {
-	token := os.Getenv("WHATSAPP_TOKEN")
-	if token == "" {
-		return fmt.Errorf("WHATSAPP_TOKEN environment variable not set")
-	}
-
-	phoneNumberID := os.Getenv("WHATSAPP_PHONE_NUMBER_ID")
-	if phoneNumberID == "" {
-		return fmt.Errorf("WHATSAPP_PHONE_NUMBER_ID environment variable not set")
-	}
-
-	url := fmt.Sprintf("https://graph.facebook.com/v22.0/%s/messages", phoneNumberID)
-
-	// Construct the request payload
-	payload := map[string]interface{}{
-		"messaging_product": "whatsapp",
-		"recipient_type":    "individual",
-		"to":                recipientID,
-		"type":              "text",
-		"text": map[string]string{
-			"body": message,
-		},
-	}
-
-	jsonPayload, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("❌ Error marshaling message payload: %v", err)
-		return err
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
-	if err != nil {
-		log.Printf("❌ Error creating request: %v", err)
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("❌ Error sending message: %v", err)
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		responseBody, _ := io.ReadAll(resp.Body)
-		log.Printf("❌ WhatsApp API error (status %d): %s", resp.StatusCode, string(responseBody))
-		return fmt.Errorf("API error: %d", resp.StatusCode)
-	}
-
-	log.Printf("✅ Message sent successfully to %s", recipientID)
-	return nil
-}
+// This function has been moved to the WhatsAppService
