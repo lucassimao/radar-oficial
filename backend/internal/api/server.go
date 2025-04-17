@@ -26,6 +26,7 @@ func NewServer(db *pgxpool.Pool) *Server {
 func (s *Server) RegisterHandlers() {
 	s.Router.Handle("/crawl", handlers.NewCrawlHandler(s.DB))
 	s.Router.Handle("/reindex", handlers.NewReindexHandler(s.DB))
+	s.Router.Handle("/webhook/whatsapp", handlers.NewWhatsAppWebhookHandler())
 }
 
 func (s *Server) Start(port string) error {

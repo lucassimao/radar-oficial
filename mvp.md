@@ -17,7 +17,7 @@
 - [x] Build a Go script to download and normalize Diários Oficiais (PDF → text)
 - [x] Save metadata to PostgreSQL (e.g., date, source, entity)
 - [x] Upload PDF to Object Storage 
-- [ ] Trigger update on DO AI KB
+- [x] Trigger update on DO AI KB
 
 ---
 
