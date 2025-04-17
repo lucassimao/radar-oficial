@@ -24,11 +24,8 @@ func NewServer(db *pgxpool.Pool) *Server {
 }
 
 func (s *Server) RegisterHandlers() {
-	// Register handlers
-	crawlHandler := handlers.NewCrawlHandler(s.DB)
-	s.Router.Handle("/crawl", crawlHandler)
-	s.Router.Handle("/reindex", handlers.NewReindexHandler())
-
+	s.Router.Handle("/crawl", handlers.NewCrawlHandler(s.DB))
+	s.Router.Handle("/reindex", handlers.NewReindexHandler(s.DB))
 }
 
 func (s *Server) Start(port string) error {
@@ -54,7 +51,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	defer cancel()
 
 	// Shutdown the server
-	if err := s.server.Shutdown(shutdownCtx); err != nil {
+	err := s.server.Shutdown(shutdownCtx)
+	if err != nil && err != http.ErrServerClosed {
 		return err
 	}
 

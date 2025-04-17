@@ -47,8 +47,9 @@ func main() {
 	_ = godotenv.Load()
 
 	// Setup signal catching
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+	defer stop() // stop receiving signals
+	defer pool.Close()
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -69,14 +70,9 @@ func main() {
 	// Wait for interrupt signal
 	<-ctx.Done()
 
-	// Shutdown the server
-	if err := server.Shutdown(context.Background()); err != nil {
-		log.Fatalf("Server shutdown failed: %v", err)
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("❌ Error during server shutdown: %v", err)
+	} else {
+		log.Println("✅ Server shutdown complete")
 	}
-
-	// Explicitly close the DB connection pool
-	log.Println("Closing database connection pool...")
-	pool.Close()
-
-	log.Println("Application shutdown complete")
 }

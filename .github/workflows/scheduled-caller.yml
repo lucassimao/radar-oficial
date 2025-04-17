@@ -3,12 +3,17 @@ name: Radar-Oficial Crawler
 on:
   schedule:
     - cron: "0 7-19 * * *"  # every hour between 7 AM and 7 PM (inclusive)
-  workflow_dispatch:       # optional: allows manual run
+  workflow_dispatch:
 
 jobs:
-  call-endpoint:
+  call-endpoints:
     runs-on: ubuntu-latest
     steps:
-      - name: Call Endpoint
+      - name: Call /crawl endpoint
+        continue-on-error: true
         run: |
-          curl "https://radar-oficial-kfrag.ondigitalocean.app/crawl?slug=governo-pi"
+          curl -s -f "https://radar-oficial-kfrag.ondigitalocean.app/crawl?slug=governo-pi"
+
+      - name: Reindex knowledge base
+        run: |
+          curl -s -f "https://radar-oficial-kfrag.ondigitalocean.app/reindex"
