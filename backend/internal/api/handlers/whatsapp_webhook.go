@@ -11,7 +11,7 @@ import (
 )
 
 // WhatsAppWebhookHandler handles incoming webhook requests from WhatsApp
-type WhatsAppWebhookHandler struct {}
+type WhatsAppWebhookHandler struct{}
 
 // NewWhatsAppWebhookHandler creates a new WhatsAppWebhookHandler
 func NewWhatsAppWebhookHandler() *WhatsAppWebhookHandler {
@@ -54,9 +54,9 @@ type WhatsAppMessage struct {
 // ServeHTTP handles both GET (verification) and POST (message webhook) requests
 func (h *WhatsAppWebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Print request details for debugging
-	log.Printf("📝 WhatsApp Webhook Request: Method=%s, URL=%s, RemoteAddr=%s, Headers=%v", 
+	log.Printf("📝 WhatsApp Webhook Request: Method=%s, URL=%s, RemoteAddr=%s, Headers=%v",
 		r.Method, r.URL.String(), r.RemoteAddr, r.Header)
-	
+
 	switch r.Method {
 	case http.MethodGet:
 		// Handle verification request from WhatsApp
@@ -76,7 +76,6 @@ func (h *WhatsAppWebhookHandler) handleVerification(w http.ResponseWriter, r *ht
 	mode := r.URL.Query().Get("hub.mode")
 	token := r.URL.Query().Get("hub.verify_token")
 
-	// Replace with your actual verify token (should match what you set in WhatsApp)
 	verifyToken := os.Getenv("WHATSAPP_WEBHOOK_TOKEN")
 
 	if mode == "subscribe" && token == verifyToken {
@@ -96,7 +95,7 @@ func (h *WhatsAppWebhookHandler) handleWebhook(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Error reading request", http.StatusBadRequest)
 		return
 	}
-	
+
 	// Log the raw request body for debugging
 	log.Printf("📦 Raw WhatsApp webhook payload: %s", string(body))
 
@@ -109,7 +108,7 @@ func (h *WhatsAppWebhookHandler) handleWebhook(w http.ResponseWriter, r *http.Re
 
 	// Process the message
 	log.Printf("✅ Received WhatsApp webhook")
-	
+
 	// Extract the sender info and message text (if present)
 	for _, entry := range message.Entry {
 		for _, change := range entry.Changes {
@@ -118,9 +117,9 @@ func (h *WhatsAppWebhookHandler) handleWebhook(w http.ResponseWriter, r *http.Re
 					if msg.Type == "text" {
 						senderID := msg.From
 						messageText := msg.Text.Body
-						
+
 						log.Printf("📱 Message from %s: %s", senderID, messageText)
-						
+
 						// Send a simple response
 						responseText := "Obrigado por sua mensagem! Estamos processando sua solicitação."
 						h.sendWhatsAppMessage(senderID, responseText)
@@ -140,14 +139,14 @@ func (h *WhatsAppWebhookHandler) sendWhatsAppMessage(recipientID, message string
 	if token == "" {
 		return fmt.Errorf("WHATSAPP_TOKEN environment variable not set")
 	}
-	
+
 	phoneNumberID := os.Getenv("WHATSAPP_PHONE_NUMBER_ID")
 	if phoneNumberID == "" {
 		return fmt.Errorf("WHATSAPP_PHONE_NUMBER_ID environment variable not set")
 	}
-	
-	url := fmt.Sprintf("https://graph.facebook.com/v17.0/%s/messages", phoneNumberID)
-	
+
+	url := fmt.Sprintf("https://graph.facebook.com/v22.0/%s/messages", phoneNumberID)
+
 	// Construct the request payload
 	payload := map[string]interface{}{
 		"messaging_product": "whatsapp",
@@ -158,22 +157,22 @@ func (h *WhatsAppWebhookHandler) sendWhatsAppMessage(recipientID, message string
 			"body": message,
 		},
 	}
-	
+
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("❌ Error marshaling message payload: %v", err)
 		return err
 	}
-	
+
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
 	if err != nil {
 		log.Printf("❌ Error creating request: %v", err)
 		return err
 	}
-	
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -181,13 +180,13 @@ func (h *WhatsAppWebhookHandler) sendWhatsAppMessage(recipientID, message string
 		return err
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode >= 400 {
 		responseBody, _ := io.ReadAll(resp.Body)
 		log.Printf("❌ WhatsApp API error (status %d): %s", resp.StatusCode, string(responseBody))
 		return fmt.Errorf("API error: %d", resp.StatusCode)
 	}
-	
+
 	log.Printf("✅ Message sent successfully to %s", recipientID)
 	return nil
 }
