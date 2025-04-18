@@ -3,6 +3,7 @@ package diarios
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,9 +13,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/launcher"
 
 	"radaroficial.app/internal/model"
 	"radaroficial.app/internal/storage"
@@ -29,6 +34,12 @@ type diarioAPIResponse struct {
 
 var diarioURLBase = "https://www.diario.pi.gov.br"
 var hrefRegexp = regexp.MustCompile(`href="(.+?\.pdf)"`)
+
+// Institution IDs for database references
+const (
+	InstitutionIDGovernoPiaui     = 1 // ID for Governo do Estado do Piauí
+	InstitutionIDMunicipiosPiaui  = 2 // ID for Diário dos Municípios do Piauí
+)
 
 func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *storage.SpacesUploader, service *DiarioService) ([]*model.Diario, error) {
 	form := url.Values{}
@@ -90,25 +101,25 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 		if len(match) < 2 {
 			continue
 		}
-		
+
 		publishedAt, _ := time.Parse("02/01/2006", row[2])
 		lastModifiedAt, _ := time.Parse("02/01/2006 15:04:05", row[3])
 		desc := strings.TrimSpace(row[1])
-		
+
 		// Check if this diario already exists in our database
-		exists, err := service.DiarioExists(ctx, 1, desc)
+		exists, err := service.DiarioExists(ctx, InstitutionIDGovernoPiaui, desc)
 		if err != nil {
 			log.Printf("⚠️ Error checking if diario exists: %v", err)
 		}
-		
+
 		if exists {
 			log.Printf("✅ Skipping already downloaded diario: %s", desc)
 			continue
 		}
-		
+
 		// If we get here, this is a new diario that needs downloading
 		log.Printf("📥 Downloading new diario: %s", desc)
-		
+
 		rawPDFPath := strings.ReplaceAll(match[1], "..", "")
 		pdfURL := diarioURLBase + rawPDFPath
 
@@ -135,11 +146,11 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 			log.Printf("❌ Failed to upload PDF to storage: %v", err)
 			continue
 		}
-		
+
 		log.Printf("✅ Successfully uploaded %s", objectPath)
 
 		diarios = append(diarios, &model.Diario{
-			InstitutionID:  1,
+			InstitutionID:  InstitutionIDGovernoPiaui,
 			SourceURL:      fmt.Sprintf("https://%s.%s/%s", uploader.Bucket, os.Getenv("DO_SPACES_ENDPOINT"), objectPath),
 			Description:    &desc,
 			PublishedAt:    &publishedAt,
@@ -148,6 +159,182 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 	}
 
 	return diarios, nil
+}
+
+// CurrentEditionResponse represents the data structure returned by the Supabase API
+type CurrentEditionResponse struct {
+	Edition int    `json:"edicao"`
+	Date    string `json:"data"`
+	ID      int    `json:"id"`
+}
+
+// FetchDiarioDosMunicipiosPiaui fetches the latest edition of Diário dos Municípios using go-rod
+func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.SpacesUploader, service *DiarioService) ([]*model.Diario, error) {
+	log.Printf("📥 Fetching Diário dos Municípios using go-rod...")
+
+	// Launch a new browser with headless mode and no-sandbox for Linux compatibility
+	l := launcher.New().
+		Headless(true).
+		Set("no-sandbox", "").
+		Set("disable-setuid-sandbox", "")
+	url := l.MustLaunch()
+	browser := rod.New().ControlURL(url).MustConnect()
+	defer browser.MustClose()
+
+	// Create a new page and navigate to the site
+	page := browser.MustPage("https://www.diarioficialdosmunicipios.org/edicao_atual.html")
+
+	// Wait for the page to load
+	page.MustWaitLoad()
+	log.Printf("✅ Page loaded successfully")
+
+	// Try to find the edition information with different strategies
+	var editionText string
+
+	// First attempt: Look for element with class .title-edi
+	titleElement, err := page.Element("span#newDesc > h1")
+	if err == nil {
+		editionText = titleElement.MustText()
+		log.Printf("✅ Found edition text using span#newDesc > h1: %s", editionText)
+	}
+
+	// Try different regex patterns to match edition info
+	var matches []string
+
+	// Try with comma pattern first: "Edição 5302, 16/04/2025"
+	editionRegex := regexp.MustCompile(`Edição\s+(\d+),\s+(\d{2}/\d{2}/\d{4})`)
+	matches = editionRegex.FindStringSubmatch(editionText)
+
+	log.Printf("📄 Parsed edition info: %v", matches)
+
+	if len(matches) < 3 {
+		return nil, fmt.Errorf("failed to parse edition information from text: %s", editionText)
+	}
+
+	// Extract the edition number and date
+	editionNumber, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse edition number: %w", err)
+	}
+
+	dateStr := matches[2]
+
+	// Parse the publication date
+	publishDate, err := time.Parse("02/01/2006", dateStr)
+	if err != nil {
+		log.Printf("⚠️ Error parsing publication date %s, using current date", dateStr)
+		publishDate = time.Now()
+	}
+
+	// Create a descriptive title
+	description := fmt.Sprintf("Edição %d (%s)", editionNumber, dateStr)
+
+	// Check if this diario already exists in our database
+	exists, err := service.DiarioExists(ctx, InstitutionIDMunicipiosPiaui, description)
+	if err != nil {
+		log.Printf("⚠️ Error checking if diario exists: %v", err)
+	}
+
+	if exists {
+		log.Printf("✅ Skipping already downloaded diario: %s", description)
+		return nil, nil
+	}
+
+	// Try different strategies to find the PDF download link
+	var pdfURL string
+
+	// Strategy 1: Try to find a link containing "Baixar Edição"
+	downloadLinks, err := page.Elements("a")
+	if err == nil {
+		for _, link := range downloadLinks {
+			text, err := link.Text()
+			if err == nil && strings.Contains(text, "Baixar Edição") {
+				pdfURL = link.MustProperty("href").String()
+				log.Printf("✅ Found download link with text 'Baixar Edição': %s", pdfURL)
+				break
+			}
+		}
+	}
+
+	// Strategy 2: Look for links that might be PDF downloads
+	if pdfURL == "" {
+		pdfLinks, err := page.Elements("a[href$='.pdf']")
+		if err == nil && len(pdfLinks) > 0 {
+			pdfURL = pdfLinks[0].MustProperty("href").String()
+			log.Printf("✅ Found PDF link by extension: %s", pdfURL)
+		}
+	}
+
+	if pdfURL == "" {
+		return nil, fmt.Errorf("could not find any download link for the PDF")
+	}
+
+	log.Printf("📄 Found PDF URL: %s", pdfURL)
+
+	// Get the PDF file directly using a standard HTTP request instead of the browser
+	client := &http.Client{
+		Timeout: 1 * time.Hour,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	// Create request
+	req, err := http.NewRequestWithContext(ctx, "GET", pdfURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Header.Set("Referer", "https://www.diarioficialdosmunicipios.org/edicao_atual.html")
+
+	// Send request
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download PDF: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download PDF, HTTP status: %d", resp.StatusCode)
+	}
+
+	// Read the PDF content
+	pdfContent, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read PDF content: %w", err)
+	}
+
+	log.Printf("📥 Downloaded PDF: %d bytes", len(pdfContent))
+
+	// Format upload path
+	objectPath := fmt.Sprintf("municipios-pi/%d/%02d/edicao_%d_%s.pdf",
+		publishDate.Year(),
+		publishDate.Month(),
+		editionNumber,
+		publishDate.Format("2006-01-02"))
+
+	// Upload to storage
+	err = uploader.UploadFile(ctx, objectPath, bytes.NewReader(pdfContent), int64(len(pdfContent)), "application/pdf")
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload PDF: %w", err)
+	}
+
+	log.Printf("✅ Successfully uploaded %s", objectPath)
+
+	// Create the Diario object
+	lastModifiedAt := time.Now()
+
+	diario := &model.Diario{
+		InstitutionID:  InstitutionIDMunicipiosPiaui, // ID for Diário dos Municípios
+		SourceURL:      fmt.Sprintf("https://%s.%s/%s", uploader.Bucket, os.Getenv("DO_SPACES_ENDPOINT"), objectPath),
+		Description:    &description,
+		PublishedAt:    &publishDate,
+		LastModifiedAt: &lastModifiedAt,
+	}
+
+	return []*model.Diario{diario}, nil
 }
 
 // sanitizeDescription returns a safe string for filenames
