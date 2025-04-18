@@ -41,6 +41,7 @@ const (
 	InstitutionIDMunicipiosPiaui  = 2 // ID for Diário dos Municípios do Piauí
 )
 
+// FetchGovernoPiauiDiarios fetches diarios from the Governo do Piauí website, uploads them to storage, and inserts them into the database
 func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *storage.SpacesUploader, service *DiarioService) ([]*model.Diario, error) {
 	form := url.Values{}
 	form.Set("draw", "3")
@@ -91,6 +92,7 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 	}
 
 	var diarios []*model.Diario
+	var processedCount int
 
 	for _, row := range parsed.Data {
 		if len(row) < 4 {
@@ -149,15 +151,27 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 
 		log.Printf("✅ Successfully uploaded %s", objectPath)
 
-		diarios = append(diarios, &model.Diario{
+		// Create diario object
+		diario := &model.Diario{
 			InstitutionID:  InstitutionIDGovernoPiaui,
 			SourceURL:      fmt.Sprintf("https://%s.%s/%s", uploader.Bucket, os.Getenv("DO_SPACES_ENDPOINT"), objectPath),
 			Description:    &desc,
 			PublishedAt:    &publishedAt,
 			LastModifiedAt: &lastModifiedAt,
-		})
+		}
+		
+		// Insert directly into database
+		if err := service.Insert(ctx, diario); err != nil {
+			log.Printf("⚠️ Failed to insert diário for %s: %v", diario.SourceURL, err)
+		} else {
+			log.Printf("✅ Inserted diário %s", diario.SourceURL)
+			processedCount++
+		}
+		
+		diarios = append(diarios, diario)
 	}
-
+	
+	log.Printf("📊 Successfully processed %d diários from Governo do Piauí", processedCount)
 	return diarios, nil
 }
 
@@ -169,6 +183,7 @@ type CurrentEditionResponse struct {
 }
 
 // FetchDiarioDosMunicipiosPiaui fetches the latest edition of Diário dos Municípios using go-rod
+// and directly inserts it into the database
 func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.SpacesUploader, service *DiarioService) ([]*model.Diario, error) {
 	log.Printf("📥 Fetching Diário dos Municípios using go-rod...")
 
@@ -240,10 +255,9 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 		return nil, nil
 	}
 
-	// Try different strategies to find the PDF download link
 	var pdfURL string
 
-	// Strategy 1: Try to find a link containing "Baixar Edição"
+	// Try to find a link containing "Baixar Edição"
 	downloadLinks, err := page.Elements("a")
 	if err == nil {
 		for _, link := range downloadLinks {
@@ -253,15 +267,6 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 				log.Printf("✅ Found download link with text 'Baixar Edição': %s", pdfURL)
 				break
 			}
-		}
-	}
-
-	// Strategy 2: Look for links that might be PDF downloads
-	if pdfURL == "" {
-		pdfLinks, err := page.Elements("a[href$='.pdf']")
-		if err == nil && len(pdfLinks) > 0 {
-			pdfURL = pdfLinks[0].MustProperty("href").String()
-			log.Printf("✅ Found PDF link by extension: %s", pdfURL)
 		}
 	}
 
@@ -332,6 +337,13 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 		Description:    &description,
 		PublishedAt:    &publishDate,
 		LastModifiedAt: &lastModifiedAt,
+	}
+	
+	// Insert directly into database
+	if err := service.Insert(ctx, diario); err != nil {
+		log.Printf("⚠️ Failed to insert diário for %s: %v", diario.SourceURL, err)
+	} else {
+		log.Printf("✅ Inserted diário %s", diario.SourceURL)
 	}
 
 	return []*model.Diario{diario}, nil

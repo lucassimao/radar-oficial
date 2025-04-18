@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -57,28 +58,37 @@ func (h *CrawlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to fetch diarios", http.StatusInternalServerError)
 			return
 		}
+		
+		// Diarios are now inserted directly by the fetcher functions
+		fmt.Fprintf(w, "📥 Processed %d diário(s) from Governo do Piauí\n", len(entries))
 	} else if slug == "municipios-pi" {
-		// Fetch and save diario from Municípios do Piauí
-		municipiosEntries, err := diarios.FetchDiarioDosMunicipiosPiaui(ctx, uploader, service)
-		if err != nil {
-			log.Printf("❌ Failed to fetch diario dos municípios: %v", err)
-			http.Error(w, "Failed to fetch diario dos municípios", http.StatusInternalServerError)
-			return
-		}
-
-		entries = municipiosEntries
+		// Create a background context that won't be canceled when the request ends
+		bgCtx := context.Background()
+		
+		// Start the fetching process in a goroutine
+		go func() {
+			// Create a copy of the DB connection for the goroutine
+			asyncService := diarios.NewDiarioService(h.DB)
+			
+			log.Printf("🔄 Starting asynchronous fetch of Diário dos Municípios do Piauí")
+			
+			// Fetch and save diario from Municípios do Piauí in the background
+			municipiosEntries, err := diarios.FetchDiarioDosMunicipiosPiaui(bgCtx, uploader, asyncService)
+			if err != nil {
+				log.Printf("❌ Async fetch failed for diario dos municípios: %v", err)
+				return
+			}
+			
+			log.Printf("✅ Async process completed successfully. Processed %d diário(s) from Municípios do Piauí", len(municipiosEntries))
+		}()
+		
+		// Immediately respond to the user
+		fmt.Fprintf(w, "🚀 Background processing started for Diário dos Municípios\n")
+		fmt.Fprintf(w, "📋 The process typically takes a few minutes to complete\n")
+		fmt.Fprintf(w, "📊 Results will be logged to the server console\n")
 	} else {
 		// If slug is not supported, return 204
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	for _, d := range entries {
-		if err := service.Insert(ctx, d); err != nil {
-			log.Printf("⚠️ Failed to insert diário for %s: %v", d.SourceURL, err)
-		} else {
-			log.Printf("✅ Inserted diário %s", d.SourceURL)
-		}
-	}
-
-	fmt.Fprintf(w, "📥 Processed %d diário(s)\n", len(entries))
 }
