@@ -9,7 +9,7 @@ import {
  
 const MyModelAdapter: ChatModelAdapter = {
   async run({ messages, abortSignal }) {
-    const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat`, {
+    const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
