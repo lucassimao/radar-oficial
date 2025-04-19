@@ -9,8 +9,7 @@ import {
  
 const MyModelAdapter: ChatModelAdapter = {
   async run({ messages, abortSignal }) {
-    // TODO replace with your own API
-    const result = await fetch("http://localhost:8080/chat", {
+    const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
