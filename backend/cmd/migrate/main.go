@@ -15,7 +15,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/joho/godotenv"
-	"radaroficial.app/internal/config"
 )
 
 //go:embed migrations/*.sql
@@ -44,10 +43,7 @@ func main() {
 		log.Fatalf("Invalid DB_PORT: %v", err)
 	}
 
-	sslMode := "disable"
-	if config.Env() == "production" {
-		sslMode = "require"
-	}
+	sslMode := os.Getenv("DB_SSL_MODE")
 
 	// e.g., postgres://user:pass@host:5432/dbname
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s", dbUser, dbPassword,

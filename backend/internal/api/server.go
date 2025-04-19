@@ -36,9 +36,6 @@ func (s *Server) RegisterHandlers() {
 		s.Router.Handle("/webhook/whatsapp", whatsappHandler)
 		log.Println("✅ WhatsApp webhook handler registered")
 	}
-	
-	// Note: The /crawl endpoint has been removed as diario fetching is now handled by scheduled jobs
-	log.Println("ℹ️ Diario fetching is now handled by scheduled worker jobs running every hour")
 }
 
 func (s *Server) Start(port string) error {

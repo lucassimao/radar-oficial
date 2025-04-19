@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"radaroficial.app/internal/api"
-	"radaroficial.app/internal/config"
 )
 
 var pool *pgxpool.Pool
@@ -27,10 +26,7 @@ func init() {
 		log.Fatalf("Invalid DB_PORT: %v", err)
 	}
 
-	sslMode := "disable"
-	if config.Env() == "production" {
-		sslMode = "require"
-	}
+	sslMode := os.Getenv("DB_SSL_MODE")
 
 	// e.g., postgres://user:pass@host:5432/dbname
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s", dbUser, dbPassword,

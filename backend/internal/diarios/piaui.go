@@ -21,6 +21,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 
+	"radaroficial.app/internal/config"
 	"radaroficial.app/internal/model"
 	"radaroficial.app/internal/storage"
 )
@@ -37,8 +38,8 @@ var hrefRegexp = regexp.MustCompile(`href="(.+?\.pdf)"`)
 
 // Institution IDs for database references
 const (
-	InstitutionIDGovernoPiaui     = 1 // ID for Governo do Estado do Piauí
-	InstitutionIDMunicipiosPiaui  = 2 // ID for Diário dos Municípios do Piauí
+	InstitutionIDGovernoPiaui    = 1 // ID for Governo do Estado do Piauí
+	InstitutionIDMunicipiosPiaui = 2 // ID for Diário dos Municípios do Piauí
 )
 
 // FetchGovernoPiauiDiarios fetches diarios from the Governo do Piauí website, uploads them to storage, and inserts them into the database
@@ -159,7 +160,7 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 			PublishedAt:    &publishedAt,
 			LastModifiedAt: &lastModifiedAt,
 		}
-		
+
 		// Insert directly into database
 		if err := service.Insert(ctx, diario); err != nil {
 			log.Printf("⚠️ Failed to insert diário for %s: %v", diario.SourceURL, err)
@@ -167,10 +168,10 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 			log.Printf("✅ Inserted diário %s", diario.SourceURL)
 			processedCount++
 		}
-		
+
 		diarios = append(diarios, diario)
 	}
-	
+
 	log.Printf("📊 Successfully processed %d diários from Governo do Piauí", processedCount)
 	return diarios, nil
 }
@@ -192,6 +193,10 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 		Headless(true).
 		Set("no-sandbox", "").
 		Set("disable-setuid-sandbox", "")
+
+	if config.Env() == "production" {
+		l.Bin("/usr/bin/google-chrome")
+	}
 	url := l.MustLaunch()
 	browser := rod.New().ControlURL(url).MustConnect()
 	defer browser.MustClose()
@@ -338,7 +343,7 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 		PublishedAt:    &publishDate,
 		LastModifiedAt: &lastModifiedAt,
 	}
-	
+
 	// Insert directly into database
 	if err := service.Insert(ctx, diario); err != nil {
 		log.Printf("⚠️ Failed to insert diário for %s: %v", diario.SourceURL, err)
