@@ -9,7 +9,7 @@ func WithCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		if os.Getenv("ENV") == "production" {
-			w.Header().Add("Access-Control-Allow-Origin", "https://radar-oficial.app/")
+			w.Header().Add("Access-Control-Allow-Origin", "https://radaroficial.app/")
 			w.Header().Add("Access-Control-Allow-Origin", "https://radar-oficial.vercel.app")
 		} else {
 			origin := r.Header.Get("Origin")
