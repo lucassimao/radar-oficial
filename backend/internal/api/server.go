@@ -24,7 +24,7 @@ func NewServer(db *pgxpool.Pool) *Server {
 }
 
 func (s *Server) RegisterHandlers() {
-	s.Router.Handle("/crawl", handlers.NewCrawlHandler(s.DB))
+	// Register the reindex handler
 	s.Router.Handle("/reindex", handlers.NewReindexHandler(s.DB))
 	
 	// Initialize WhatsApp webhook handler
@@ -36,6 +36,9 @@ func (s *Server) RegisterHandlers() {
 		s.Router.Handle("/webhook/whatsapp", whatsappHandler)
 		log.Println("✅ WhatsApp webhook handler registered")
 	}
+	
+	// Note: The /crawl endpoint has been removed as diario fetching is now handled by scheduled jobs
+	log.Println("ℹ️ Diario fetching is now handled by scheduled worker jobs running every hour")
 }
 
 func (s *Server) Start(port string) error {

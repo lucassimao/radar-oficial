@@ -9,14 +9,6 @@ jobs:
   call-endpoints:
     runs-on: ubuntu-latest
     steps:
-      - name: Governo do Piaui
-        continue-on-error: true
-        run: |
-          curl -s -f "https://radar-oficial-kfrag.ondigitalocean.app/crawl?slug=governo-pi"
-      - name: Municipios do Piaui
-        continue-on-error: true
-        run: |
-          curl -s -f "https://radar-oficial-kfrag.ondigitalocean.app/crawl?slug=municipios-pi"
       - name: Reindex knowledge base
         run: |
           curl -s -f "https://radar-oficial-kfrag.ondigitalocean.app/reindex"

@@ -79,11 +79,6 @@ func main() {
 	}
 	log.Printf("✅ Connected to database")
 
-	// Verify River Queue database tables
-	if err := jobs.VerifyRiverTables(ctx, pool); err != nil {
-		log.Fatalf("❌ Failed to verify River Queue tables: %v", err)
-	}
-
 	// Initialize and start River Queue client
 	riverClient, err := jobs.NewRiverClient(ctx, pool)
 	if err != nil {
@@ -97,9 +92,11 @@ func main() {
 	} else {
 		log.Printf("✅ Initial jobs scheduled successfully")
 	}
-	
+
 	// Log active periodic jobs
-	log.Printf("🔄 Worker configured with periodic jobs for Diário dos Municípios running every hour")
+	log.Printf("🔄 Worker configured with the following periodic jobs running every hour:")
+	log.Printf("  • Diário dos Municípios do Piauí")
+	log.Printf("  • Diários Oficiais do Governo do Piauí")
 
 	// Wait for termination signal
 	log.Printf("🔄 Worker is now running. Press Ctrl+C to exit...")
@@ -114,11 +111,6 @@ func main() {
 
 	// Shutdown River Queue client
 	riverClient.Shutdown(shutdownCtx)
-	
-	// Clean up old jobs
-	if err := jobs.CleanRiverTables(shutdownCtx, pool); err != nil {
-		log.Printf("⚠️ Failed to clean up old jobs: %v", err)
-	}
 
 	log.Printf("👋 Worker shutdown complete")
 }
