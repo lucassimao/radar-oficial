@@ -312,13 +312,20 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 		return nil, fmt.Errorf("failed to download PDF, HTTP status: %d", resp.StatusCode)
 	}
 
-	// Read the PDF content
-	pdfContent, err := io.ReadAll(resp.Body)
+	// Create a temporary file
+	tmpFile, err := os.CreateTemp("", "diario-*.pdf")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read PDF content: %w", err)
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	// Write PDF content to file
+	sizeInBytes, err := io.Copy(tmpFile, resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write PDF to temp file: %w", err)
 	}
 
-	log.Printf("📥 Downloaded PDF: %d bytes", len(pdfContent))
+	log.Printf("📥 Saved PDF to temp file %s (%d bytes)", tmpFile.Name(), sizeInBytes)
 
 	// Format upload path
 	objectPath := fmt.Sprintf("municipios-pi/%d/%02d/edicao_%d_%s.pdf",
@@ -328,7 +335,7 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 		publishDate.Format("2006-01-02"))
 
 	// Upload to storage
-	err = uploader.UploadFile(ctx, objectPath, bytes.NewReader(pdfContent), int64(len(pdfContent)), "application/pdf")
+	err = uploader.UploadFile(ctx, objectPath, tmpFile, sizeInBytes, "application/pdf")
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload PDF: %w", err)
 	}
