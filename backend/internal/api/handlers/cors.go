@@ -3,16 +3,21 @@ package handlers
 import (
 	"net/http"
 	"os"
+	"slices"
 )
 
 func WithCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
+		origin := r.Header.Get("Origin")
 		if os.Getenv("ENV") == "production" {
-			w.Header().Add("Access-Control-Allow-Origin", "https://radaroficial.app/")
-			w.Header().Add("Access-Control-Allow-Origin", "https://radar-oficial.vercel.app")
+			validOrigins := []string{"https://radaroficial.app", "https://www.radaroficial.app", "https://radar-oficial.vercel.app"}
+
+			if slices.Contains(validOrigins, origin) {
+				w.Header().Add("Access-Control-Allow-Origin", origin)
+			}
+
 		} else {
-			origin := r.Header.Get("Origin")
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		}
 
