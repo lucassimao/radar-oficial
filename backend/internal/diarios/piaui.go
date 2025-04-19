@@ -280,6 +280,8 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 	}
 
 	log.Printf("📄 Found PDF URL: %s", pdfURL)
+	// kill the browser to save memory
+	browser.MustClose()
 
 	// Get the PDF file directly using a standard HTTP request instead of the browser
 	client := &http.Client{
