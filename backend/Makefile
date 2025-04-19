@@ -17,6 +17,9 @@ setup-migrate:
 run-api:
 	go run ./cmd/api
 
+run-worker:
+	go run ./cmd/worker
+
 migrate:
 	go run ./cmd/migrate
 
