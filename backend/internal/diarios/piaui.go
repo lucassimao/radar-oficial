@@ -303,7 +303,7 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 	}
 
 	// Create request
-	req, err := http.NewRequestWithContext(ctx, "GET", pdfURL, nil)
+	req, err := http.NewRequest("GET", pdfURL, nil) // no context attached
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

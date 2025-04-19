@@ -110,7 +110,7 @@ func (w *DiarioWorker) MaxRetries(job *river.Job[DiarioDosMunicipiosArgs]) int {
 
 // Timeout sets the maximum execution time for this job
 func (w *DiarioWorker) Timeout(job *river.Job[DiarioDosMunicipiosArgs]) time.Duration {
-	return 30 * time.Minute // Allow up to 30 minutes to fetch and process
+	return 1 * time.Hour // Allow up to 1 hour to fetch and process
 }
 
 // MaxRetries defines max attempts for this job
