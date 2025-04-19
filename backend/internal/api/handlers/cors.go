@@ -1,22 +1,20 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
+	"os"
 )
 
 func WithCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		// if os.Getenv("ENV") == "production" {
-		// 	w.Header().Add("Access-Control-Allow-Origin", "https://decorebator.com")
-		// 	w.Header().Add("Access-Control-Allow-Origin", "https://dolphin-app-3u25d.ondigitalocean.app")
-		// } else {
-		origin := r.Header.Get("Origin")
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		// }
-
-		fmt.Println(origin)
+		if os.Getenv("ENV") == "production" {
+			w.Header().Add("Access-Control-Allow-Origin", "https://radar-oficial.app/")
+			w.Header().Add("Access-Control-Allow-Origin", "https://radar-oficial.vercel.app")
+		} else {
+			origin := r.Header.Get("Origin")
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Expose-Headers", "Content-Type, Content-Length, Authorization, Cookie")
