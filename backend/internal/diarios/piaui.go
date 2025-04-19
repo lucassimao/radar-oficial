@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -192,7 +193,8 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 	l := launcher.New().
 		Headless(true).
 		Set("no-sandbox", "").
-		Set("disable-setuid-sandbox", "")
+		Set("disable-setuid-sandbox", "").
+		Set("js-flags", "--max-old-space-size=96") // Limit JS heap to 96MB
 
 	if config.Env() == "production" {
 		l.Bin("/usr/bin/google-chrome")
@@ -283,11 +285,20 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 	// kill the browser to save memory
 	browser.MustClose()
 
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	log.Printf("📊 Memory used: %.2f MB", float64(m.Alloc)/1024/1024)
+
 	// Get the PDF file directly using a standard HTTP request instead of the browser
 	client := &http.Client{
 		Timeout: 1 * time.Hour,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			MaxIdleConns:          1,
+			MaxConnsPerHost:       1,
+			IdleConnTimeout:       90 * time.Second,
+			DisableCompression:    true,
+			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
 
@@ -318,6 +329,7 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
 
 	// Write PDF content to file
 	sizeInBytes, err := io.Copy(tmpFile, resp.Body)
