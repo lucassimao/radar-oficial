@@ -81,14 +81,6 @@ func main() {
 		log.Fatalf("❌ Failed to initialize River Queue client: %v", err)
 	}
 
-	// Schedule initial jobs
-	if err := riverClient.ScheduleInitialJobs(ctx); err != nil {
-		log.Printf("⚠️ Failed to schedule initial jobs: %v", err)
-		// Continue running even if scheduling fails
-	} else {
-		log.Printf("✅ Initial jobs scheduled successfully")
-	}
-
 	// Log active periodic jobs
 	log.Printf("🔄 Worker configured with the following periodic jobs running every hour:")
 	log.Printf("  • Diário dos Municípios do Piauí")
