@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"slices"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"radaroficial.app/internal/model"
@@ -62,10 +63,10 @@ func (s *DiarioService) DiarioExists(ctx context.Context, institutionID int, des
 			WHERE institution_id = $1 AND description = $2
 		);
 	`
-	
+
 	var exists bool
 	err := s.DB.QueryRow(ctx, query, institutionID, description).Scan(&exists)
-	
+
 	return exists, err
 }
 
@@ -107,16 +108,16 @@ func (s *DiarioService) GetPendingIndexing(ctx context.Context) ([]*model.Diario
 	return diarios, nil
 }
 
-func (s *DiarioService) MarkAsIndexingSubmitted(ctx context.Context, ids []int) error {
+func (s *DiarioService) MarkAsIndexingSubmitted(ctx context.Context, institutionIds []int) error {
 	query := `
 		UPDATE diarios
 		SET 
 			indexing_submitted_at = NOW(),
 			updated_at = NOW()
-		WHERE id = ANY($1);
+		WHERE institution_id = ANY($1) AND indexing_submitted_at IS NULL ;
 	`
 
-	_, err := s.DB.Exec(ctx, query, ids)
+	_, err := s.DB.Exec(ctx, query, institutionIds)
 	return err
 }
 
@@ -132,44 +133,50 @@ func (s *DiarioService) ReIndexKnowledgeBases(ctx context.Context) error {
 		return nil
 	}
 
-	// Group diarios by institution_id
-	diariosByInstitution := make(map[int][]*model.Diario)
-	var allIds []int
+	var pendingIndexingInstitutionIds []int
 
 	for _, d := range diarios {
-		diariosByInstitution[d.InstitutionID] = append(diariosByInstitution[d.InstitutionID], d)
-		allIds = append(allIds, d.ID)
+		if !slices.Contains(pendingIndexingInstitutionIds, d.InstitutionID) {
+			pendingIndexingInstitutionIds = append(pendingIndexingInstitutionIds, d.InstitutionID)
+		}
 	}
 
 	// Map of institution IDs to knowledge base UUIDs
-	institutionKBMapping := map[int]string{
-		1: KNOWLEDGE_BASE_PIAUI_UUID,
+	institutionKBMapping := map[string][]int{
+		KNOWLEDGE_BASE_PIAUI_UUID: {InstitutionIDGovernoPiaui, InstitutionIDMunicipiosPiaui},
 	}
 
-	// Iterate over each institution group
-	for institutionID, institutionDiarios := range diariosByInstitution {
-		kbUUID, exists := institutionKBMapping[institutionID]
-		if !exists {
-			log.Printf("⚠️ No knowledge base UUID mapping for institution ID: %d", institutionID)
-			continue
-		}
+	// which knowledge bases we have already triggered the reindexing
+	var reindexTriggeredForKb []string
 
-		log.Printf("✅ Processing %d diarios for institution ID: %d", len(institutionDiarios), institutionID)
+	for _, pendingIndexingInstitutionId := range pendingIndexingInstitutionIds {
 
-		// Trigger reindex for this institution's knowledge base
-		err := triggerReindex(ctx, kbUUID)
-		if err != nil {
-			log.Printf("❌ Failed to trigger reindex for institution ID %d: %v", institutionID, err)
-			continue
-		}
-	}
+		for kbUUID, institutionIds := range institutionKBMapping {
 
-	// Mark all diarios as indexing submitted
-	if len(allIds) > 0 {
-		err = s.MarkAsIndexingSubmitted(ctx, allIds)
-		if err != nil {
-			log.Printf("❌ Failed to mark diarios as indexing submitted: %v", err)
-			return err
+			if slices.Contains(reindexTriggeredForKb, kbUUID) {
+				continue // avoid reindexing the same kb more than once
+			}
+
+			if slices.Contains(institutionIds, pendingIndexingInstitutionId) {
+
+				// Trigger reindex for this institution's knowledge base
+				err := triggerReindex(ctx, kbUUID)
+
+				if err == nil {
+					log.Printf("✅ Reindexing triggered for Knowledge base %s", kbUUID)
+					reindexTriggeredForKb = append(reindexTriggeredForKb, kbUUID)
+
+					// Mark all diarios from these institutions as indexing submitted
+					err = s.MarkAsIndexingSubmitted(ctx, institutionIds)
+					if err != nil {
+						log.Printf("❌ Failed to mark diarios as indexing submitted: %v", err)
+						return err
+					}
+
+				} else {
+					log.Printf("❌ Failed to trigger reindex for knowledge base ID %s: %v", kbUUID, err)
+				}
+			}
 		}
 	}
 
