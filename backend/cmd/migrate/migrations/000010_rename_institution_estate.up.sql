@@ -1,0 +1,1 @@
+ALTER TABLE institutions RENAME COLUMN estate TO state;

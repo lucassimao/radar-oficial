@@ -24,17 +24,18 @@ func NewServer(db *pgxpool.Pool) *Server {
 }
 
 func (s *Server) RegisterHandlers() {
-	// Register the reindex handler
+
 	s.Router.Handle("/reindex", handlers.NewReindexHandler(s.DB))
 	s.Router.Handle("/chat", handlers.WithCORS(handlers.NewChatHandler(s.DB)))
+	s.Router.Handle("/institutions", handlers.WithCORS(handlers.NewInstitutionHandler(s.DB)))
 
 	// Initialize WhatsApp webhook handler
 	whatsappHandler, err := handlers.NewWhatsAppWebhookHandler(s.DB)
-	if err != nil {
+	if err == nil {
+		s.Router.Handle("/webhook/whatsapp", whatsappHandler)
+	} else {
 		log.Printf("❌ Error initializing WhatsApp webhook handler: %v", err)
 		log.Println("⚠️ WhatsApp webhook will not be available")
-	} else {
-		s.Router.Handle("/webhook/whatsapp", whatsappHandler)
 	}
 }
 

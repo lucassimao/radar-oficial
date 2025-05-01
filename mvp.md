@@ -1,104 +1,108 @@
-
-## ✅ **MVP Step-by-Step Feature Roadmap**
+## ✅ **Updated MVP Feature Roadmap**
 
 ### 🔹 **Phase 1: Core Infrastructure Setup**
 
 #### 1. **Set up development environment**
-- [x] Install and configure **Go 1.24**, keeping Go 1.23 for legacy support
-- [x] Set up GitHub repo, environments (local + staging)
-- [x] Set up `.env` config with secrets, API keys
+- [x] Install and configure **Go 1.24**, keeping Go 1.23 for legacy support  
+- [x] Set up GitHub repo, environments (local + staging)  
+- [x] Set up `.env` config with secrets, API keys  
 
 #### 2. **Provision and configure infrastructure**
-- [x] Create and configure **PostgreSQL DB** (DO Managed DB or Supabase)
-- [x] Create **DigitalOcean AI Knowledge Base**
-- [x] Choose embedding model: ✅ `MultiQA MPNet Base Dot v1`
+- [x] Create and configure **PostgreSQL DB**  
+- [x] Create **DigitalOcean AI Knowledge Base**  
+- [x] Choose embedding model: ✅ `MultiQA MPNet Base Dot v1`  
 
 #### 3. **Create Diário ingestion pipeline**
-- [x] Build a Go script to download and normalize Diários Oficiais (PDF → text)
-- [x] Save metadata to PostgreSQL (e.g., date, source, entity)
-- [x] Upload PDF to Object Storage 
-- [x] Trigger update on DO AI KB
+- [x] Build a Go script to download and normalize Diários Oficiais (PDF → text)  
+- [x] Save metadata to PostgreSQL (e.g., date, source, entity)  
+- [x] Upload PDF to Object Storage  
+- [x] Trigger update on DO AI KB  
 
 ---
 
-### 🔹 **Phase 2: WhatsApp Bot + Basic Interaction**
+### 🔹 **Phase 2: Web Chatbot MVP + Query Management**
 
-#### 4. **Integrate WhatsApp**
-- [x] Set up webhook to receive/send messages
-- [x] Verify connection and delivery receipt
+#### 4. **Create basic chatbot web interface**
+- [x] Build a lightweight web UI with Next.js (chat style like ChatGPT)
+- [ ] Welcome message + entity selection flow
+- [x] Allow user to input natural language queries
+- [ ] Show response from DO AI KB + source metadata
+- [ ] Refactor river workers
+- [ ] Fetch diarios of all states
+- [ ] Display diarios in the website
 
-#### 5. **Create session handling logic**
-- [ ] Store basic user session info (phone number, state, entity, current context)
-- [ ] Track query counts per user to enforce tier limits
-
-#### 6. **Implement guided conversation flow**
-- [ ] Welcome the user with intro message
-- [ ] Ask: “De qual estado ou entidade pública você quer buscar informações?”  
-- [ ] Store chosen municipality or entity
-- [ ] Ask: “Agora me diga o que você gostaria de saber sobre este órgão.”
-- [ ] Save both inputs and send a query to DO AI KB
+#### 5. **Handle user sessions and query usage**
+- [ ] Store user ID or session fingerprint
+- [ ] Track number of queries per user
+- [ ] Enforce free tier limit (5/month)
 
 ---
 
 ### 🔹 **Phase 3: AI Querying and Response**
 
-#### 7. **Send question to DigitalOcean AI KB**
-- [ ] Use `/query` API with user prompt + entity filter
-- [ ] Retrieve answer and top-matching sources
-- [ ] Format response with:
-  - Summary
-  - Source entity + date
-  - Optional snippet from Diário
+#### 6. **Send question to DigitalOcean AI KB**
+- [ ] Use `/query` API with user prompt + entity filter  
+- [ ] Retrieve answer and top-matching sources  
+- [ ] Allow PDF downloads
 
-#### 8. **Send response back to user**
-- [ ] Format message for WhatsApp UX
-- [ ] Include: “Deseja perguntar mais algo sobre este mesmo órgão ou outro diferente?”
+#### 7. **Send response back to frontend**
+- [ ] Format answer for chatbot UX
+- [ ] Ask user: "Deseja continuar com este mesmo órgão ou outro?"
 
-#### 9. **Handle follow-up actions**
-- [ ] If same entity: loop to [Step 6]
-- [ ] If different entity: reset entity and loop to [Step 5]
-- [ ] If user says "não": send thank you + goodbye message
+#### 8. **Handle follow-up flow**
+- [ ] If same entity: loop
+- [ ] If new entity: reset and start again
+- [ ] If "não": close session with thank-you
 
 ---
 
-### 🔹 **Phase 4: Monetization and User Control**
+### 🔹 **Phase 4: WhatsApp Integration**
 
-#### 10. **Implement basic user tiers**
-- [ ] Free: 5 questions/month
-- [ ] Basic: 5 questions/day
-- [ ] Pro: 30 questions/day
+#### 9. **Integrate WhatsApp API**
+- [x] Set up webhook for incoming messages
+- [x] Send & receive messages
+- [ ] Setup new Whatsapp Account
+- [ ] Mirror the chatbot flow in WhatsApp
 
-#### 11. **Track usage per tier**
-- [ ] Use Redis or DB to track message count
-- [ ] Block or warn users when limits are hit
-
-#### 12. **Integrate payment via PagSeguro / Pix**
-- [ ] Create checkout/payment flow
-- [ ] Unlock tier access upon successful payment
+#### 10. **Connect to query tracking logic**
+- [ ] Reuse query counting mechanism for WhatsApp users
+- [ ] Enforce plan limits and usage tracking
 
 ---
 
-### 🔹 **Phase 5: Admin and Optimization Tools**
+### 🔹 **Phase 5: Monetization**
 
-#### 13. **Admin dashboard (optional CLI at MVP)**
-- [ ] View user activity
-- [ ] View failed queries
-- [ ] Manually reset query counts or users
+#### 11. **Implement user tiers**
+- [ ] Free: 5 queries/month  
+- [ ] Basic: 5 queries/day  
+- [ ] Pro: 30 queries/day  
 
-#### 14. **Add basic analytics**
-- [ ] Number of users / queries
-- [ ] Most searched entities or topics
-
----
-
-### 💡 Optional Enhancements (Post-MVP)
-
-- [ ] Keyword-based daily alerts via WhatsApp
-- [ ] Summarize whole Diário for select entities daily
-- [ ] Add support for other states (besides Piauí)
-- [ ] Export answer + source to PDF
-- [ ] Integrate GPT-4.1 agent for follow-up context & richer conversations
+#### 12. **Integrate Pix / PagSeguro payments**
+- [ ] Payment via Pix (e.g. Gerencianet, Asaas, Mercado Pago)  
+- [ ] Webhook to confirm payment and unlock tier access  
+- [ ] Store and manage plan assignments per user
 
 ---
 
-Would you like this as a Notion board, Trello template, or markdown checklist to plug into your workspace? I can generate it for you in 1 click.
+### 🔹 **Phase 6: Admin & Analytics**
+
+#### 13. **Admin tools (CLI or web)**
+- [ ] View usage stats  
+- [ ] View failed queries  
+- [ ] Reset users / limits
+- [ ] Setup River jobs dashboard
+
+
+#### 14. **Basic analytics**
+- [ ] Total queries / users  
+- [ ] Most searched entities or terms
+
+---
+
+### 💡 **Optional Post-MVP Enhancements**
+
+- [ ] Keyword-based alerts via WhatsApp  
+- [ ] Diário summarization per entity  
+- [ ] Support more states beyond Piauí  
+- [ ] GPT-4.1 for richer, context-aware chat  
+- [ ] Export chat + Diário to PDF  

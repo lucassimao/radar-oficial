@@ -10,30 +10,54 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"radaroficial.app/internal/chat"
 	"radaroficial.app/internal/diarios"
 )
 
 // ChatHandler handles incoming webhook requests from WhatsApp
 type ChatHandler struct {
 	diarioService *diarios.DiarioService
+	chatService   *chat.ChatService
 	db            *pgxpool.Pool
 }
 
 // NewChatHandler creates a new ChatHandler
 func NewChatHandler(db *pgxpool.Pool) *ChatHandler {
-	whatsappService := diarios.NewDiarioService(db)
 
 	return &ChatHandler{
-		diarioService: whatsappService,
+		diarioService: diarios.NewInstitutionService(db),
+		chatService:   chat.NewChatService(),
 		db:            db,
 	}
 }
 
 func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Print request details for debugging
-	log.Printf("📝 Request: Method=%s, URL=%s, RemoteAddr=%s, Headers=%v",
-		r.Method, r.URL.String(), r.RemoteAddr, r.Header)
 
+	if r.Method == "GET" && r.URL.Path == "/chat/welcome" {
+		h.welcome(w)
+	} else if r.Method == "POST" && r.URL.Path == "/chat" {
+		h.chatCompletion(w, r)
+	} else {
+		http.Error(w, "Invalid request", http.StatusNotFound)
+	}
+
+}
+
+func (h *ChatHandler) welcome(w http.ResponseWriter) {
+	welcomeMsg, err := h.chatService.WelcomeMessage()
+
+	if err != nil {
+		http.Error(w, "Error welcoming user", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"text": welcomeMsg,
+	})
+}
+
+func (h *ChatHandler) chatCompletion(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("❌ Error reading request body: %v", err)
@@ -43,8 +67,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var message MessageSet
 	if err := json.Unmarshal(body, &message); err != nil {
-		log.Printf("❌ Error parsing webhook: %v", err)
-		http.Error(w, "Error parsing webhook", http.StatusBadRequest)
+		http.Error(w, "Error parsing chat request", http.StatusBadRequest)
 		return
 	}
 
@@ -52,13 +75,16 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	agentResponse, err := h.sendMessageToAIAgent(lastMessage.Content[0].Text)
 
-	// Set JSON response header
-	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		http.Error(w, "Failed to process chat completion", http.StatusInternalServerError)
+		return
+	}
 
-	// Create JSON response with key "text"
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"text": agentResponse,
 	})
+
 }
 
 // sendMessageToAIAgent sends a message to the Digital Ocean AI agent and returns the response

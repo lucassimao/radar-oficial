@@ -1,14 +1,16 @@
 "use client";
  
-import type { ReactNode } from "react";
+import { SelectInstitutionUI } from "@/components/tools/select-institution";
 import {
   AssistantRuntimeProvider,
   useLocalRuntime,
-  type ChatModelAdapter,
+  type ChatModelAdapter
 } from "@assistant-ui/react";
+import { type ReactNode } from "react";
  
 const MyModelAdapter: ChatModelAdapter = {
   async run({ messages, abortSignal }) {
+    
     const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
       method: "POST",
       headers: {
@@ -21,7 +23,7 @@ const MyModelAdapter: ChatModelAdapter = {
       // if the user hits the "cancel" button or escape keyboard key, cancel the request
       signal: abortSignal,
     });
- 
+
     const data = await result.json();
     return {
       content: [
@@ -31,8 +33,21 @@ const MyModelAdapter: ChatModelAdapter = {
         },
       ],
     };
+
+    // return {
+    //   content: [{
+    //     type: 'tool-call',
+    //     toolName:'welcome',
+    //     toolCallId:'123',
+    //     argsText:'',
+    //     args:{
+
+    //     }
+    //   }]
+    // }
   },
 };
+
  
 export function MyRuntimeProvider({
   children,
@@ -40,9 +55,10 @@ export function MyRuntimeProvider({
   children: ReactNode;
 }>) {
   const runtime = useLocalRuntime(MyModelAdapter);
- 
+
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
+    <AssistantRuntimeProvider  runtime={runtime}>
+      <SelectInstitutionUI/>
       {children}
     </AssistantRuntimeProvider>
   );

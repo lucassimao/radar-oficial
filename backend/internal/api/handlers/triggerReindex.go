@@ -8,7 +8,6 @@ import (
 	"radaroficial.app/internal/diarios"
 )
 
-
 type ReindexHandler struct{ DB *pgxpool.Pool }
 
 func NewReindexHandler(db *pgxpool.Pool) *ReindexHandler {
@@ -17,7 +16,7 @@ func NewReindexHandler(db *pgxpool.Pool) *ReindexHandler {
 
 func (h *ReindexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	srv := diarios.NewDiarioService(h.DB)
+	srv := diarios.NewInstitutionService(h.DB)
 
 	err := srv.ReIndexKnowledgeBases(r.Context())
 	if err != nil {

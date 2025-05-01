@@ -15,13 +15,13 @@ import (
 
 // RiverClient wraps the River configuration and client
 type RiverClient struct {
-	Client       *river.Client[pgx.Tx]
-	RiverDB      *riverpgxv5.Driver
-	Workers      *river.Workers
-	StopFunc     func(context.Context) error
-	
+	Client   *river.Client[pgx.Tx]
+	RiverDB  *riverpgxv5.Driver
+	Workers  *river.Workers
+	StopFunc func(context.Context) error
+
 	// Worker instances
-	DiarioWorker     *DiarioWorker
+	DiarioWorker       *DiarioWorker
 	GovernoPiauiWorker *GovernoPiauiWorker
 }
 
@@ -29,33 +29,33 @@ type RiverClient struct {
 func NewRiverClient(ctx context.Context, db *pgxpool.Pool) (*RiverClient, error) {
 	// Create the River database driver using pgx
 	riverDB := riverpgxv5.New(db)
-	
+
 	// Create the job service dependencies
-	diarioService := diarios.NewDiarioService(db)
-	
+	diarioService := diarios.NewInstitutionService(db)
+
 	// Initialize storage uploader
 	uploader, err := storage.NewSpacesUploader("radar-oficial-diarios-piaui")
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage uploader: %w", err)
 	}
-	
+
 	// Create our job workers
 	diarioWorker := NewDiarioWorker(diarioService, uploader)
 	governoWorker := NewGovernoPiauiWorker(diarioService, uploader)
-	
+
 	// Create a workers registry
 	workers := river.NewWorkers()
-	
+
 	// Register all workers
 	river.AddWorker(workers, diarioWorker)
 	river.AddWorker(workers, governoWorker)
-	
+
 	// Add periodic jobs
 	periodicJobs := []*river.PeriodicJob{
 		CreateDiarioDosMunicipiosPeriodicJob(),
 		CreateGovernoPiauiPeriodicJob(),
 	}
-	
+
 	// Create the River client config
 	riverConfig := river.Config{
 		Queues: map[string]river.QueueConfig{
@@ -64,26 +64,26 @@ func NewRiverClient(ctx context.Context, db *pgxpool.Pool) (*RiverClient, error)
 		Workers:      workers,
 		PeriodicJobs: periodicJobs,
 	}
-	
+
 	// Create the River client
 	client, err := river.NewClient(riverDB, &riverConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create River client: %w", err)
 	}
-	
+
 	// Start the River client
 	if err := client.Start(ctx); err != nil {
 		return nil, fmt.Errorf("failed to start River client: %w", err)
 	}
-	
+
 	log.Printf("✅ River queue client started successfully")
-	
+
 	return &RiverClient{
-		Client:            client,
-		RiverDB:           riverDB,
-		Workers:           workers,
-		StopFunc:          client.Stop,
-		DiarioWorker:      diarioWorker,
+		Client:             client,
+		RiverDB:            riverDB,
+		Workers:            workers,
+		StopFunc:           client.Stop,
+		DiarioWorker:       diarioWorker,
 		GovernoPiauiWorker: governoWorker,
 	}, nil
 }
@@ -94,11 +94,11 @@ func (r *RiverClient) ScheduleInitialJobs(ctx context.Context) error {
 	if err := ScheduleDiarioDosMunicipiosJob(ctx, r.Client); err != nil {
 		return fmt.Errorf("failed to schedule immediate diario job: %w", err)
 	}
-	
+
 	if err := ScheduleGovernoPiauiJob(ctx, r.Client, ""); err != nil {
 		return fmt.Errorf("failed to schedule immediate governo job: %w", err)
 	}
-	
+
 	log.Printf("✅ Initial jobs scheduled successfully")
 	return nil
 }

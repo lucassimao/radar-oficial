@@ -19,7 +19,7 @@ type DiarioService struct {
 	DB *pgxpool.Pool
 }
 
-func NewDiarioService(db *pgxpool.Pool) *DiarioService {
+func NewInstitutionService(db *pgxpool.Pool) *DiarioService {
 	return &DiarioService{DB: db}
 }
 
