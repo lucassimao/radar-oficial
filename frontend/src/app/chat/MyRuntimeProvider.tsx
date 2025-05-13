@@ -1,17 +1,16 @@
 "use client";
- 
+
 import { SelectInstitutionUI } from "@/components/tools/select-institution";
 import { InstitutionSelectedInstructionsUI } from "@/components/tools/selected-institution-instructions";
 import {
   AssistantRuntimeProvider,
   useLocalRuntime,
-  type ChatModelAdapter
+  type ChatModelAdapter,
 } from "@assistant-ui/react";
 import { Suspense, type ReactNode } from "react";
- 
+
 const MyModelAdapter: ChatModelAdapter = {
   async run({ messages, abortSignal }) {
-    
     const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
       method: "POST",
       headers: {
@@ -37,7 +36,6 @@ const MyModelAdapter: ChatModelAdapter = {
   },
 };
 
- 
 export function MyRuntimeProvider({
   children,
 }: Readonly<{
@@ -46,11 +44,11 @@ export function MyRuntimeProvider({
   const runtime = useLocalRuntime(MyModelAdapter);
 
   return (
-    <AssistantRuntimeProvider  runtime={runtime}>
-      <Suspense fallback={<div/>}>
-        <SelectInstitutionUI/>
+    <AssistantRuntimeProvider runtime={runtime}>
+      <Suspense fallback={<div />}>
+        <SelectInstitutionUI />
       </Suspense>
-      <InstitutionSelectedInstructionsUI/>
+      <InstitutionSelectedInstructionsUI />
       {children}
     </AssistantRuntimeProvider>
   );
