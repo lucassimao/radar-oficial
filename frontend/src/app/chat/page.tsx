@@ -1,4 +1,5 @@
-'use client'
+'use client';
+
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
 import { MyRuntimeProvider } from "./MyRuntimeProvider";

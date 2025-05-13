@@ -25,6 +25,15 @@
 #### 4. **Create basic chatbot web interface**
 - [x] Build a lightweight web UI with Next.js (chat style like ChatGPT)
 - [ ] Welcome message + entity selection flow
+        - if no previous sessions, send welcome msg
+            - select entity
+            - save entity in the local state
+            - send msg + target entity
+        - Subscribe
+
+        - find a way to allow change the selected diario
+        - if users cross the free usage limits, then display a msg asking for payment
+
 - [x] Allow user to input natural language queries
 - [ ] Show response from DO AI KB + source metadata
 - [ ] Refactor river workers

@@ -5,7 +5,7 @@ export const WelcomeChatbot: React.FC<{}> = () => {
   const runtime = useThreadRuntime();
 
   const onSubscribe = () => {
-  
+    // TODO subscribe flow
   };
 
   const onListDiarios = () => {
@@ -48,8 +48,7 @@ export const WelcomeChatbot: React.FC<{}> = () => {
             ✅ <strong>Básico</strong>: até 5 consultas por dia (R$ 19,90/mês)
           </li>
           <li>
-            ✅ <strong>Profissional</strong>: até 30 consultas por dia (R$
-            49,90/mês)
+            ✅ <strong>Profissional</strong>: Consultas ilimitadas (R$ 49,90/mês)
           </li>
         </ul>
       </div>

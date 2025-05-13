@@ -21,7 +21,6 @@ type ChatHandler struct {
 	db            *pgxpool.Pool
 }
 
-// NewChatHandler creates a new ChatHandler
 func NewChatHandler(db *pgxpool.Pool) *ChatHandler {
 
 	return &ChatHandler{
@@ -32,29 +31,7 @@ func NewChatHandler(db *pgxpool.Pool) *ChatHandler {
 }
 
 func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
-	if r.Method == "GET" && r.URL.Path == "/chat/welcome" {
-		h.welcome(w)
-	} else if r.Method == "POST" && r.URL.Path == "/chat" {
-		h.chatCompletion(w, r)
-	} else {
-		http.Error(w, "Invalid request", http.StatusNotFound)
-	}
-
-}
-
-func (h *ChatHandler) welcome(w http.ResponseWriter) {
-	welcomeMsg, err := h.chatService.WelcomeMessage()
-
-	if err != nil {
-		http.Error(w, "Error welcoming user", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"text": welcomeMsg,
-	})
+	h.chatCompletion(w, r)
 }
 
 func (h *ChatHandler) chatCompletion(w http.ResponseWriter, r *http.Request) {

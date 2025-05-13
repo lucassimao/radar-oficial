@@ -1,14 +1,32 @@
-import { useAssistantToolUI } from "@assistant-ui/react";
+
+import { useAssistantToolUI, useThreadRuntime } from "@assistant-ui/react";
 import { useEffect, useState } from "react";
+import { Institution, useInstitution } from "../hooks/useInstitution";
+import { ClientOnly } from "../ui/client-only";
 
-type Institution = {
-  id: number;
-  name: string;
-  slug: string;
-};
-
-export const SelectInstitutionUI = () => {
+const ToolUI = () => {
+  const {saveInstitution} = useInstitution();
+  
   const [institutions, setInstitutions] = useState<Institution[]>();
+  const runtime = useThreadRuntime();
+
+  const onInstitutionSelected = (institution:Institution) =>{
+    saveInstitution(institution)
+
+    runtime.append({
+      role:'assistant',
+      content: [
+        {
+          type: "tool-call",
+          toolName: "institution-selected",
+          toolCallId: String(Date.now()),
+          argsText: '',
+          args: {},
+        },
+      ],
+    });
+
+  }
 
   useEffect(() => {
 
@@ -45,7 +63,7 @@ export const SelectInstitutionUI = () => {
                 {institutions?.map((option) => (
                   <button
                     key={option.slug}
-                    onClick={() => console.log(option.slug)}
+                    onClick={() => onInstitutionSelected(option)}
                     className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition"
                   >
                     {option.name}
@@ -60,3 +78,9 @@ export const SelectInstitutionUI = () => {
   });
   return null;
 };
+
+
+// needed to wrap ToolUI with ClientOnly so that we can use local storage api
+export const SelectInstitutionUI = ()=>{
+  return <ClientOnly><ToolUI/></ClientOnly>
+}  

@@ -1,12 +1,13 @@
 "use client";
  
 import { SelectInstitutionUI } from "@/components/tools/select-institution";
+import { InstitutionSelectedInstructionsUI } from "@/components/tools/selected-institution-instructions";
 import {
   AssistantRuntimeProvider,
   useLocalRuntime,
   type ChatModelAdapter
 } from "@assistant-ui/react";
-import { type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
  
 const MyModelAdapter: ChatModelAdapter = {
   async run({ messages, abortSignal }) {
@@ -33,18 +34,6 @@ const MyModelAdapter: ChatModelAdapter = {
         },
       ],
     };
-
-    // return {
-    //   content: [{
-    //     type: 'tool-call',
-    //     toolName:'welcome',
-    //     toolCallId:'123',
-    //     argsText:'',
-    //     args:{
-
-    //     }
-    //   }]
-    // }
   },
 };
 
@@ -58,7 +47,10 @@ export function MyRuntimeProvider({
 
   return (
     <AssistantRuntimeProvider  runtime={runtime}>
-      <SelectInstitutionUI/>
+      <Suspense fallback={<div/>}>
+        <SelectInstitutionUI/>
+      </Suspense>
+      <InstitutionSelectedInstructionsUI/>
       {children}
     </AssistantRuntimeProvider>
   );
