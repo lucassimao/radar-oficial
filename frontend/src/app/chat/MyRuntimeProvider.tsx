@@ -1,17 +1,35 @@
-"use client";
-
+import { Institution, useInstitution } from "@/components/hooks/useInstitution";
 import { SelectInstitutionUI } from "@/components/tools/select-institution";
 import { InstitutionSelectedInstructionsUI } from "@/components/tools/selected-institution-instructions";
 import {
   AssistantRuntimeProvider,
   useLocalRuntime,
-  type ChatModelAdapter,
+  ChatModelRunOptions,ChatModelRunResult
 } from "@assistant-ui/react";
-import { Suspense, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
-const MyModelAdapter: ChatModelAdapter = {
-  async run({ messages, abortSignal }) {
-    const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
+
+class MyModelAdapter {
+
+  constructor(private institution: Institution|null){  }
+
+  async run({ messages, abortSignal }:ChatModelRunOptions): Promise<ChatModelRunResult> {
+
+    if (!this.institution){
+      return {
+        content: [
+          {
+            type: "tool-call",
+            toolName: "select-institution",
+            toolCallId: String(Date.now()),
+            argsText: '',
+            args: {},
+          },
+        ],
+      }
+    }
+
+    const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat?i=${this.institution.slug}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -32,8 +50,8 @@ const MyModelAdapter: ChatModelAdapter = {
           text: data.text,
         },
       ],
-    };
-  },
+    }
+  }
 };
 
 export function MyRuntimeProvider({
@@ -41,13 +59,12 @@ export function MyRuntimeProvider({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const runtime = useLocalRuntime(MyModelAdapter);
+  const {institution} = useInstitution()
+  const runtime = useLocalRuntime(new MyModelAdapter(institution));
 
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      <Suspense fallback={<div />}>
+    <AssistantRuntimeProvider  runtime={runtime}>
         <SelectInstitutionUI />
-      </Suspense>
       <InstitutionSelectedInstructionsUI />
       {children}
     </AssistantRuntimeProvider>

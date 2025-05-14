@@ -1,9 +1,8 @@
 import { useAssistantToolUI } from "@assistant-ui/react";
 import { useInstitution } from "../hooks/useInstitution";
-import { ClientOnly } from "../ui/client-only";
 
 
- const ToolUI = () => {
+export const InstitutionSelectedInstructionsUI = () => {
   const {institution} = useInstitution();
 
   useAssistantToolUI({
@@ -30,8 +29,3 @@ import { ClientOnly } from "../ui/client-only";
   return null;
 };
 
-
-// needed to wrap ToolUI with ClientOnly so that we can use local storage api
-export const InstitutionSelectedInstructionsUI = ()=>{
-  return <ClientOnly><ToolUI/></ClientOnly>
-}  

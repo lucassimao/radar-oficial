@@ -1,18 +1,18 @@
 
-import { useAssistantToolUI, useThreadRuntime } from "@assistant-ui/react";
+import { useAssistantToolUI, useThreadListItemRuntime, useThreadRuntime } from "@assistant-ui/react";
 import { useEffect, useState } from "react";
 import { Institution, useInstitution } from "../hooks/useInstitution";
-import { ClientOnly } from "../ui/client-only";
 
-const ToolUI = () => {
+export const SelectInstitutionUI = () => {
   const {saveInstitution} = useInstitution();
-  
+  const threadListItemRuntime = useThreadListItemRuntime();
   const [institutions, setInstitutions] = useState<Institution[]>();
   const runtime = useThreadRuntime();
 
   const onInstitutionSelected = (institution:Institution) =>{
     saveInstitution(institution)
 
+    threadListItemRuntime.rename(institution.name)
     runtime.append({
       role:'assistant',
       content: [
@@ -79,8 +79,3 @@ const ToolUI = () => {
   return null;
 };
 
-
-// needed to wrap ToolUI with ClientOnly so that we can use local storage api
-export const SelectInstitutionUI = ()=>{
-  return <ClientOnly><ToolUI/></ClientOnly>
-}  
