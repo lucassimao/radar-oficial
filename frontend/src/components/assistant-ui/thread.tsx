@@ -203,6 +203,7 @@ const EditComposer: FC = () => {
 };
 
 const AssistantMessage: FC = () => {
+  const displayActionBar = false;
   
   return (
     <MessagePrimitive.Root className="grid grid-cols-[auto_auto_1fr] grid-rows-[auto_1fr] relative w-full max-w-[var(--thread-max-width)] py-4">
@@ -210,7 +211,7 @@ const AssistantMessage: FC = () => {
         <MessagePrimitive.Content components={{ Text: MarkdownText }} />
       </div>
 
-    {/* <AssistantActionBar/> */}
+    { displayActionBar && <AssistantActionBar/> }
 
       <BranchPicker className="col-start-2 row-start-2 -ml-2 mr-2" />
     </MessagePrimitive.Root>

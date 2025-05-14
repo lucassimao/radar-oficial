@@ -1,5 +1,6 @@
 import { useThreadRuntime } from "@assistant-ui/react";
 import React from "react";
+import { SELECT_DIARIO_STATE_TOOL_NAME } from "../tools/select-state";
 
 export const WelcomeChatbot: React.FC<{}> = () => {
   const runtime = useThreadRuntime();
@@ -8,13 +9,13 @@ export const WelcomeChatbot: React.FC<{}> = () => {
     // TODO subscribe flow
   };
 
-  const onListDiarios = () => {
+  const onClickListDiarios = () => {
     runtime.append({
       role:'assistant',
       content: [
         {
           type: "tool-call",
-          toolName: "select-institution",
+          toolName: SELECT_DIARIO_STATE_TOOL_NAME,
           toolCallId: String(Date.now()),
           argsText: '',
           args: {},
@@ -61,7 +62,7 @@ export const WelcomeChatbot: React.FC<{}> = () => {
           Assinar um plano
         </button>
         <button
-          onClick={onListDiarios}
+          onClick={onClickListDiarios}
           className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300 transition"
         >
           Listar Diários disponíveis

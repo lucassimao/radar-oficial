@@ -1,24 +1,28 @@
 
 import { useAssistantToolUI, useThreadListItemRuntime, useThreadRuntime } from "@assistant-ui/react";
 import { useEffect, useState } from "react";
-import { Institution, useInstitution } from "../hooks/useInstitution";
+import {  BRAZIL_STATES, DiarioState, useDiarioState } from "../hooks/useInstitution";
+import { DIARIO_STATE_SELECTED_TOOL_NAME } from "./selected-state-instructions";
 
-export const SelectInstitutionUI = () => {
-  const {saveInstitution} = useInstitution();
+export const SELECT_DIARIO_STATE_TOOL_NAME= 'select-diario-state'
+
+
+export const SelectStateUI = () => {
+  const {saveDiarioState} = useDiarioState();
   const threadListItemRuntime = useThreadListItemRuntime();
-  const [institutions, setInstitutions] = useState<Institution[]>();
+  const [diarioState, setDiarioStates] = useState<DiarioState[]>();
   const runtime = useThreadRuntime();
 
-  const onInstitutionSelected = (institution:Institution) =>{
-    saveInstitution(institution)
+  const onDiarioStateSelected = (diarioState:DiarioState) =>{
+    saveDiarioState(diarioState)
 
-    threadListItemRuntime.rename(institution.name)
+    threadListItemRuntime.rename(BRAZIL_STATES[diarioState])
     runtime.append({
       role:'assistant',
       content: [
         {
           type: "tool-call",
-          toolName: "institution-selected",
+          toolName: DIARIO_STATE_SELECTED_TOOL_NAME,
           toolCallId: String(Date.now()),
           argsText: '',
           args: {},
@@ -30,7 +34,7 @@ export const SelectInstitutionUI = () => {
 
   useEffect(() => {
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/institutions`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/states`)
       .then((response) => {
         if (response.ok) {
           return response.json();
@@ -39,14 +43,14 @@ export const SelectInstitutionUI = () => {
         }
       })
       .then((body) => {
-        const institutions: Institution[] = body.institutions;
-        setInstitutions(institutions);
+        const states: DiarioState[] = body.states;
+        setDiarioStates(states);
       })
   }, []);
 
 
   useAssistantToolUI({
-    toolName: "select-institution",
+    toolName: SELECT_DIARIO_STATE_TOOL_NAME,
     render: () => {
 
       return (
@@ -60,13 +64,13 @@ export const SelectInstitutionUI = () => {
                 Escolha o Diário que você deseja consultar:
               </p>
               <div className="flex flex-col gap-3">
-                {institutions?.map((option) => (
+                {diarioState?.map((name) => (
                   <button
-                    key={option.slug}
-                    onClick={() => onInstitutionSelected(option)}
+                    key={name}
+                    onClick={() => onDiarioStateSelected(name)}
                     className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition"
                   >
-                    {option.name}
+                    {BRAZIL_STATES[name]}
                   </button>
                 ))}
               </div>

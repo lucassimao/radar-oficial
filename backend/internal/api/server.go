@@ -27,7 +27,7 @@ func (s *Server) RegisterHandlers() {
 
 	s.Router.Handle("/reindex", handlers.NewReindexHandler(s.DB))
 	s.Router.Handle("/chat", handlers.WithCORS(handlers.NewChatHandler(s.DB)))
-	s.Router.Handle("/institutions", handlers.WithCORS(handlers.NewInstitutionHandler(s.DB)))
+	s.Router.Handle("/states", handlers.WithCORS(handlers.NewStateHandler(s.DB)))
 
 	// Initialize WhatsApp webhook handler
 	whatsappHandler, err := handlers.NewWhatsAppWebhookHandler(s.DB)

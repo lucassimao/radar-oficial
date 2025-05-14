@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"radaroficial.app/internal/chat"
@@ -35,6 +36,18 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ChatHandler) chatCompletion(w http.ResponseWriter, r *http.Request) {
+
+	queryValues := r.URL.Query()
+
+	// if somehow the state is not present, trigger the select-diario-state tool
+	if !queryValues.Has("state") {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(selectDiarioStateToolCall())
+		return
+	}
+
+	state := queryValues.Get("state")
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("❌ Error reading request body: %v", err)
@@ -50,9 +63,10 @@ func (h *ChatHandler) chatCompletion(w http.ResponseWriter, r *http.Request) {
 
 	lastMessage := message.Messages[len(message.Messages)-1]
 
-	agentResponse, err := h.sendMessageToAIAgent(lastMessage.Content[0].Text)
+	agentResponse, err := h.sendMessageToAIAgent(state, lastMessage.Content[0].Text)
 
 	if err != nil {
+		log.Printf("❌ Failed to process chat completion: %v", err)
 		http.Error(w, "Failed to process chat completion", http.StatusInternalServerError)
 		return
 	}
@@ -65,20 +79,12 @@ func (h *ChatHandler) chatCompletion(w http.ResponseWriter, r *http.Request) {
 }
 
 // sendMessageToAIAgent sends a message to the Digital Ocean AI agent and returns the response
-func (h *ChatHandler) sendMessageToAIAgent(message string) (string, error) {
-	// Get endpoint and access key from environment variables
-	agentEndpoint := os.Getenv("DO_AGENT_PIAUI_URL")
-	if agentEndpoint == "" {
-		return "", fmt.Errorf("DO_AGENT_PIAUI_URL environment variable not set")
-	}
+func (h *ChatHandler) sendMessageToAIAgent(state, message string) (string, error) {
 
-	agentAccessKey := os.Getenv("DO_AGENT_PIAUI_ACCESS_KEY")
-	if agentAccessKey == "" {
-		return "", fmt.Errorf("DO_AGENT_PIAUI_ACCESS_KEY environment variable not set")
+	url, agentAccessKey, err := getAgentSettings(state)
+	if err != nil {
+		return "", err
 	}
-
-	// Construct the url for the request
-	url := fmt.Sprintf("%s/api/v1/chat/completions", agentEndpoint)
 
 	// Construct the request payload
 	type Message struct {
@@ -107,14 +113,12 @@ func (h *ChatHandler) sendMessageToAIAgent(message string) (string, error) {
 
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("❌ Error marshaling AI agent payload: %v", err)
 		return "", err
 	}
 
 	// Create the request
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
 	if err != nil {
-		log.Printf("❌ Error creating AI agent request: %v", err)
 		return "", err
 	}
 
@@ -126,7 +130,6 @@ func (h *ChatHandler) sendMessageToAIAgent(message string) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("❌ Error sending message to AI agent: %v", err)
 		return "", err
 	}
 	defer resp.Body.Close()
@@ -150,12 +153,10 @@ func (h *ChatHandler) sendMessageToAIAgent(message string) (string, error) {
 	var aiResponse AIResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("❌ Error reading AI agent response: %v", err)
 		return "", err
 	}
 
 	if err := json.Unmarshal(responseBody, &aiResponse); err != nil {
-		log.Printf("❌ Error parsing AI agent response: %v", err)
 		return "", err
 	}
 
@@ -198,4 +199,44 @@ type Status struct {
 	Type   string `json:"type"`
 	Reason string `json:"reason"`
 	Error  string `json:"error"`
+}
+
+// Get endpoint and access key from environment variables
+func getAgentSettings(state string) (url, accessKey string, err error) {
+
+	var agentEndpoint string
+
+	switch state {
+	case "PI":
+		agentEndpoint = os.Getenv("DO_AGENT_PIAUI_URL")
+		if agentEndpoint == "" {
+			return "", "", fmt.Errorf("DO_AGENT_PIAUI_URL environment variable not set")
+		}
+
+		accessKey = os.Getenv("DO_AGENT_PIAUI_ACCESS_KEY")
+		if accessKey == "" {
+			return "", "", fmt.Errorf("DO_AGENT_PIAUI_ACCESS_KEY environment variable not set")
+		}
+	default:
+		return "", "", fmt.Errorf("Invalid diario state: %s", state)
+
+	}
+
+	url = fmt.Sprintf("%s/api/v1/chat/completions", agentEndpoint)
+	return url, accessKey, nil
+
+}
+
+func selectDiarioStateToolCall() map[string]any {
+	return map[string]any{
+		"content": []any{
+			map[string]any{
+				"type":       "tool-call",
+				"toolName":   "select-diario-state",
+				"toolCallId": fmt.Sprintf("%d", time.Now().UnixMilli()),
+				"argsText":   "",
+				"args":       map[string]any{},
+			},
+		},
+	}
 }

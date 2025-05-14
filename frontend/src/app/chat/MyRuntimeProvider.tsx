@@ -1,26 +1,26 @@
-import { Institution, useInstitution } from "@/components/hooks/useInstitution";
-import { SelectInstitutionUI } from "@/components/tools/select-institution";
-import { InstitutionSelectedInstructionsUI } from "@/components/tools/selected-institution-instructions";
+import { useDiarioState } from "@/components/hooks/useInstitution";
+import { SELECT_DIARIO_STATE_TOOL_NAME, SelectStateUI } from "@/components/tools/select-state";
+import { StateSelectedInstructionsUI } from "@/components/tools/selected-state-instructions";
 import {
   AssistantRuntimeProvider,
-  useLocalRuntime,
-  ChatModelRunOptions,ChatModelRunResult
+  ChatModelRunOptions, ChatModelRunResult,
+  useLocalRuntime
 } from "@assistant-ui/react";
 import { type ReactNode } from "react";
 
 
 class MyModelAdapter {
 
-  constructor(private institution: Institution|null){  }
+  constructor(private diarioState: string|null){  }
 
   async run({ messages, abortSignal }:ChatModelRunOptions): Promise<ChatModelRunResult> {
 
-    if (!this.institution){
+    if (!this.diarioState){
       return {
         content: [
           {
             type: "tool-call",
-            toolName: "select-institution",
+            toolName: SELECT_DIARIO_STATE_TOOL_NAME,
             toolCallId: String(Date.now()),
             argsText: '',
             args: {},
@@ -29,7 +29,7 @@ class MyModelAdapter {
       }
     }
 
-    const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat?i=${this.institution.slug}`, {
+    const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat?state=${this.diarioState}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -59,13 +59,13 @@ export function MyRuntimeProvider({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const {institution} = useInstitution()
-  const runtime = useLocalRuntime(new MyModelAdapter(institution));
+  const {diarioState} = useDiarioState()
+  const runtime = useLocalRuntime(new MyModelAdapter(diarioState));
 
   return (
     <AssistantRuntimeProvider  runtime={runtime}>
-        <SelectInstitutionUI />
-      <InstitutionSelectedInstructionsUI />
+        <SelectStateUI />
+      <StateSelectedInstructionsUI />
       {children}
     </AssistantRuntimeProvider>
   );
