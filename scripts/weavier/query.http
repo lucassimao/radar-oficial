@@ -1,0 +1,38 @@
+curl -X POST -H 'Content-Type: application/json' \
+-d '{
+  "query": "{
+    Get {
+      Diarios (
+        limit: 10
+        hybrid: {
+          query: \"Poderia detalhar 00012.036017/2024-41 no diario oficial do piaui 92/2025 ? \",
+        }
+      ) {
+        _additional {
+            generate(
+            groupedResult: {
+                task: \"\"\"
+
+                You are a helpful assistant trained to search and summarize content from **official publications from the state of Piauí, Brazil**, including:
+
+                - The **Diário Oficial do Estado do Piauí (DOE-PI)**  
+                - Municipal official journals (e.g., Teresina, Parnaíba, Floriano, Picos)  
+                - Public entities such as IFPI (Instituto Federal do Piauí), secretarias estaduais, câmaras municipais, and autarquias
+
+                Your goal is to help users find information about **recent publications** in these Diários, including laws, job postings, appointments, tenders, notices, and other government activities.
+                -----
+                
+                Poderia detalhar 00012.036017/2024-41 no diario oficial do piaui 92/2025 ?
+                \"\"\"
+            }
+            ) {
+              groupedResult
+              error
+            }
+        }
+      }
+    }
+  }"
+}' http://localhost:8081/v1/graphql
+
+

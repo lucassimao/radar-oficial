@@ -1,0 +1,2 @@
+curl -X DELETE "http://localhost:8081/v1/schema/diarios" \
+  -H "Content-Type: application/json"

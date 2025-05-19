@@ -18,6 +18,7 @@ run-api:
 	go run ./cmd/api
 
 run-worker:
+	. ./scripts/.radar-oficial/bin/activate && \
 	go run ./cmd/worker
 
 migrate:

@@ -25,6 +25,7 @@ import (
 	"radaroficial.app/internal/config"
 	"radaroficial.app/internal/model"
 	"radaroficial.app/internal/storage"
+	"radaroficial.app/internal/weaviate"
 )
 
 type diarioAPIResponse struct {
@@ -109,9 +110,10 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 		publishedAt, _ := time.Parse("02/01/2006", row[2])
 		lastModifiedAt, _ := time.Parse("02/01/2006 15:04:05", row[3])
 		desc := strings.TrimSpace(row[1])
+		sanitized := sanitizeDescription(desc)
 
 		// Check if this diario already exists in our database
-		exists, err := service.DiarioExists(ctx, InstitutionIDGovernoPiaui, desc)
+		exists, err := service.Exists(ctx, InstitutionIDGovernoPiaui, desc)
 		if err != nil {
 			log.Printf("⚠️ Error checking if diario exists: %v", err)
 		}
@@ -121,11 +123,11 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 			continue
 		}
 
-		// If we get here, this is a new diario that needs downloading
-		log.Printf("📥 Downloading new diario: %s", desc)
-
 		rawPDFPath := strings.ReplaceAll(match[1], "..", "")
 		pdfURL := diarioURLBase + rawPDFPath
+
+		// If we get here, this is a new diario that needs downloading
+		log.Printf("📥 Downloading diario %s URL %s", desc, pdfURL)
 
 		resp, err := http.Get(pdfURL)
 		if err != nil || resp.StatusCode != http.StatusOK {
@@ -140,7 +142,20 @@ func FetchGovernoPiauiDiarios(ctx context.Context, date time.Time, uploader *sto
 			continue
 		}
 
-		sanitized := sanitizeDescription(desc)
+		outputDir, err := splitPDFAndConvertToMarkdown(pdfContent)
+		if err != nil {
+			log.Printf("❌ Failed to split PDF: %v", err)
+			continue
+		}
+		err = weaviate.UploadDir(outputDir, desc, "Governo do Estado do Piaui")
+		if err == nil {
+			os.RemoveAll(outputDir)
+		} else {
+			log.Printf("❌ Failed to upload markdown files to weaviate: %v", err)
+			continue
+
+		}
+
 		// Construct object path: e.g., "2025/04/DOEPI_71_2025.pdf"
 		filename := filepath.Base(rawPDFPath)
 		objectPath := fmt.Sprintf("governo-pi/%d/%02d/%s_%s", date.Year(), date.Month(), sanitized, filename)
@@ -252,7 +267,7 @@ func FetchDiarioDosMunicipiosPiaui(ctx context.Context, uploader *storage.Spaces
 	description := fmt.Sprintf("Edição %d (%s)", editionNumber, dateStr)
 
 	// Check if this diario already exists in our database
-	exists, err := service.DiarioExists(ctx, InstitutionIDMunicipiosPiaui, description)
+	exists, err := service.Exists(ctx, InstitutionIDMunicipiosPiaui, description)
 	if err != nil {
 		log.Printf("⚠️ Error checking if diario exists: %v", err)
 	}

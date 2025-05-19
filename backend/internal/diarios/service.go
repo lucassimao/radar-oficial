@@ -1,13 +1,7 @@
 package diarios
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"log"
-	"net/http"
-	"os"
-	"slices"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"radaroficial.app/internal/model"
@@ -55,8 +49,8 @@ func (s *DiarioService) Insert(ctx context.Context, d *model.Diario) error {
 	return err
 }
 
-// DiarioExists checks if a diario already exists in the database
-func (s *DiarioService) DiarioExists(ctx context.Context, institutionID int, description string) (bool, error) {
+// Exists checks if a diario already exists in the database
+func (s *DiarioService) Exists(ctx context.Context, institutionID int, description string) (bool, error) {
 	query := `
 		SELECT EXISTS(
 			SELECT 1 FROM diarios 
@@ -119,97 +113,4 @@ func (s *DiarioService) MarkAsIndexingSubmitted(ctx context.Context, institution
 
 	_, err := s.DB.Exec(ctx, query, institutionIds)
 	return err
-}
-
-func (s *DiarioService) ReIndexKnowledgeBases(ctx context.Context) error {
-	diarios, err := s.GetPendingIndexing(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	if len(diarios) == 0 {
-		log.Printf("✅ No pending diarios to index")
-		return nil
-	}
-
-	var pendingIndexingInstitutionIds []int
-
-	for _, d := range diarios {
-		if !slices.Contains(pendingIndexingInstitutionIds, d.InstitutionID) {
-			pendingIndexingInstitutionIds = append(pendingIndexingInstitutionIds, d.InstitutionID)
-		}
-	}
-
-	// Map of institution IDs to knowledge base UUIDs
-	institutionKBMapping := map[string][]int{
-		KNOWLEDGE_BASE_PIAUI_UUID: {InstitutionIDGovernoPiaui, InstitutionIDMunicipiosPiaui},
-	}
-
-	// which knowledge bases we have already triggered the reindexing
-	var reindexTriggeredForKb []string
-
-	for _, pendingIndexingInstitutionId := range pendingIndexingInstitutionIds {
-
-		for kbUUID, institutionIds := range institutionKBMapping {
-
-			if slices.Contains(reindexTriggeredForKb, kbUUID) {
-				continue // avoid reindexing the same kb more than once
-			}
-
-			if slices.Contains(institutionIds, pendingIndexingInstitutionId) {
-
-				// Trigger reindex for this institution's knowledge base
-				err := triggerReindex(ctx, kbUUID)
-
-				if err == nil {
-					log.Printf("✅ Reindexing triggered for Knowledge base %s", kbUUID)
-					reindexTriggeredForKb = append(reindexTriggeredForKb, kbUUID)
-
-					// Mark all diarios from these institutions as indexing submitted
-					err = s.MarkAsIndexingSubmitted(ctx, institutionIds)
-					if err != nil {
-						log.Printf("❌ Failed to mark diarios as indexing submitted: %v", err)
-						return err
-					}
-
-				} else {
-					log.Printf("❌ Failed to trigger reindex for knowledge base ID %s: %v", kbUUID, err)
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-func triggerReindex(ctx context.Context, kbUUID string) error {
-	token := os.Getenv("DO_API_KEY")
-
-	body := map[string]interface{}{
-		"knowledge_base_uuid": kbUUID,
-	}
-
-	jsonBody, _ := json.Marshal(body)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.digitalocean.com/v2/gen-ai/indexing_jobs", bytes.NewReader(jsonBody))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 300 {
-		log.Printf("❌ Reindex request failed with status: %s", resp.Status)
-		return err
-	}
-
-	log.Println("✅ Reindex triggered successfully")
-	return nil
 }
